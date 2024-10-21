@@ -17,7 +17,7 @@ def val():
     parser.add_argument('-n', '--num-workers', type=int, default=2, help='Set the number of workers.')
     parser.add_argument('-t', '--threshold', type=float, default=2.0, help='Set the threshold')
     parser.add_argument('--seed', type=int, default=42, help='Set the seed.')
-    parser.add_argument('--model-name', type=str, default='ResNeXt50', choices=['ResNeXt50'], 
+    parser.add_argument('--model-name', type=str, default='ResNeXt50', choices=['ResNeXt50', 'ViT_B'], 
                         help='Choose the model to use.')
     args = parser.parse_args()
 
@@ -40,7 +40,7 @@ def val():
     )
 
     # Define your model
-    model_loader = ModelLoader(model_name=args.model_name)
+    model_loader = ModelLoader(model_name=args.model_name, image_size=args.image_size)
     model = model_loader.load_model()
     model = model.to(device)
     model.load_state_dict(
