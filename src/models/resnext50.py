@@ -293,7 +293,7 @@ class Bottleneck(nn.Module):
 
 
 class ResNeXt50(nn.Module):
-    def __init__(self, pretrained_weights: str = None) -> None:
+    def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
         """
         Initializes the document embedding model.
 
@@ -313,7 +313,7 @@ class ResNeXt50(nn.Module):
         num_features = self.embedding_model.fc.in_features
         self.embedding_model.fc = torch.nn.Linear(num_features, 128)
 
-    def forward(self, anchor: Tensor, positive: Tensor, negative: Tensor) -> Tuple:
+    def forward(self, anchor: Tensor, positive: Tensor, negative: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         """
         Forward pass through the document embedding model.
 

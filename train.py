@@ -50,7 +50,7 @@ def train():
                         help='Directory where logs and other outputs will be saved.')
     parser.add_argument('--deterministic-algorithms', default=False, action=argparse.BooleanOptionalAction,
                         help='Whether deterministic algorithms should be used during training.')
-    parser.add_argument('--model-name', type=str, default='ResNeXt50', choices=['ResNeXt50'],
+    parser.add_argument('--model-name', type=str, default='ResNeXt50', choices=['ResNeXt50', 'ViT_B'],
                         help='Choose the model to use.')
     args = parser.parse_args()
 
@@ -96,7 +96,11 @@ def train():
     )
 
     # Load model to device
-    model_loader = ModelLoader(model_name=args.model_name, pretrained_weights=args.pretrained_weights)
+    model_loader = ModelLoader(
+        model_name=args.model_name,
+        pretrained_weights=args.pretrained_weights,
+        image_size=args.image_size
+    )
     model = model_loader.load_model()
     model = model.to(device)
 

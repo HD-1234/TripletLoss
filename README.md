@@ -9,7 +9,7 @@ This project is a deep learning implementation for training a triplet loss-based
 - **TensorBoard Logging**: Training and validation metrics are logged using TensorBoard for visualization.
 - **Hyperparameter Saving**: Hyperparameters are saved in a YAML file for reproducibility.
 - **Evaluation**: Evaluation script to test the performance of the trained model.
-
+- **Model Support**: The framework supports multiple models (ResNeXt50 and ViT_B).
 
 ## Requirements
 - Python 3.9.0+
