@@ -16,6 +16,7 @@ from src.utils import (
     set_seed,
     write_hyperparameters_to_yaml,
     set_worker_seed,
+    calculate_lr_factor,
     BestResult
 )
 
@@ -36,6 +37,15 @@ def train():
                         help='Set the number of workers.')
     parser.add_argument('-l', '--learning-rate', type=float, default=0.0001,
                         help='Set the learning rate for the optimizer.')
+    parser.add_argument('--target-lr', type=float, default=None,
+                        help='The learning rate at the end of training. If not specified, the learning rate is fixed.')
+    parser.add_argument('--lr-steps', nargs='+', type=int, default=None,
+                        help='The epoch in which the learning rate should be adjusted. The new learning rate is '
+                             'calculated by the difference between the initial learning rate and the target learning '
+                             'rate divided by the number of steps.')
+    parser.add_argument('--lr-schedule', type=str, default='fixed',
+                        choices=['fixed', 'linear', 'exponential', 'steps'],
+                        help='Type of learning rate schedule. If not specified, learning rate is fixed.')
     parser.add_argument('-m', '--margin', type=float, default=1.0,
                         help='Set the margin value for the triplet loss function.')
     parser.add_argument('--seed', type=int, default=42,
@@ -108,6 +118,19 @@ def train():
     loss_fn = torch.nn.TripletMarginLoss(margin=args.margin)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
+    # Sets the learning rate
+    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+        optimizer,
+        lambda current_epoch: calculate_lr_factor(
+            lr0=args.learning_rate,
+            lr1=args.learning_rate if args.lr_schedule == 'fixed' else args.target_lr,
+            epoch=current_epoch,
+            max_epochs=args.epochs,
+            schedule_type=args.lr_schedule,
+            steps=args.lr_steps
+        )
+    )
+
     # Init scheduler
     scheduler = Scheduler(
         model=model,
@@ -115,7 +138,7 @@ def train():
         loss_fn=loss_fn,
         optimizer=optimizer,
         training_loader=training_loader,
-        validation_loader=validation_loader,
+        validation_loader=validation_loader
     )
 
     # Initialize results
@@ -131,7 +154,7 @@ def train():
             break
 
         # Train one epoch
-        train_loss = scheduler.train_one_epoch()
+        train_loss = scheduler.train_one_epoch(lr_scheduler=lr_scheduler)
 
         # Evaluate
         val_loss = scheduler.evaluate()

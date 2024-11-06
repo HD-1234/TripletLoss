@@ -57,8 +57,11 @@ python val.py -p path/to/test/dataset -m path/to/model -t 2.0
 - `-b`, `--batch-size`: Batch size (default: 4).
 - `-s`, `--image-size`: Image size (default: 224).
 - `-n`, `--num-workers`: Number of workers for data loading (default: 0).
-- `-l`, `--learning-rate`: Learning rate for the optimizer (default: 0.0001).
 - `-m`, `--margin`: Margin value for the triplet loss function (default: 1.5).
+- `-l`, `--learning-rate`: Learning rate for the optimizer (default: 0.0001).
+- `--target-lr`: The learning rate at the end of training. If not specified, the learning rate is fixed (default: None).
+- `--lr-steps`: The epoch in which the learning rate should be adjusted. The new learning rate is calculated by the difference between the initial learning rate and the target learning rate divided by the number of steps (default: None).
+- `--lr-schedule`: Type of learning rate schedule. Choose from 'fixed', 'linear', 'exponential' or 'steps' (default: 'fixed').
 - `--seed`: Seed for reproducibility (default: 42).
 - `--augment`: Apply data augmentation during training (default: False).
 - `--early-stopping`: Number of epochs without improvement before stopping the training. Set to -1 to disable (default: -1).

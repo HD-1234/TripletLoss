@@ -1,5 +1,6 @@
 import torch
 from torch import Tensor, nn
+from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
 import torch.optim as optim
 
@@ -52,9 +53,12 @@ class Scheduler:
 
         return negatives[indices, :]
 
-    def train_one_epoch(self) -> Tensor:
+    def train_one_epoch(self, lr_scheduler: LRScheduler) -> Tensor:
         """
         Trains the model for one epoch.
+
+        Args:
+            lr_scheduler (LRScheduler): The learn rate scheduler.
 
         Returns:
             tensor: The average loss.
@@ -88,6 +92,9 @@ class Scheduler:
 
             # Add loss to total loss
             train_loss += loss.item()
+
+        # Adjust the learning rate
+        lr_scheduler.step()
 
         return train_loss
 

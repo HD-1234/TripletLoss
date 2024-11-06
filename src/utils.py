@@ -125,12 +125,96 @@ def validate(model, data_loader, threshold, device) -> Tuple[float, float, float
     return precision, recall, f1_score, accuracy
 
 
+def calculate_lr_factor(
+        lr0: float,
+        lr1: float,
+        epoch: int,
+        max_epochs: int,
+        schedule_type: str = 'fixed',
+        steps: list = None
+) -> float:
+    """
+    Computes the learning rate factor for a given epoch based on the specified schedule type.
+
+    Args:
+        lr0 (float): The initial learning rate.
+        lr1 (float): The target learning rate at the end of the training.
+        epoch (int): The current epoch.
+        max_epochs (int): The total number of epochs.
+        schedule_type (str): The type of learning rate schedule ('fixed', 'linear', 'steps' or 'exponential').
+        steps (list): The epoch in which the learning rate should be adjusted.
+
+    Returns:
+        float: The learning rate factor to be applied to the initial learning rate.
+    """
+    # Set list
+    steps = [] if steps is None else list(dict.fromkeys(steps))
+
+    # If the current epoch is 0 or the initial learning rate is already the target learning rate or the type is set to
+    # 'fixed', no adjustment is needed.
+    if epoch == 0 or lr0 == lr1 or schedule_type == 'fixed':
+        return 1.0
+
+    # If the current epoch is the last epoch, return the factor that will adjust the learning rate to the target
+    # learning rate.
+    if epoch == max_epochs - 1:
+        return lr1 / lr0
+
+    # Exponential learning rate schedule
+    if schedule_type == 'exponential':
+        # Add a small epsilon to avoid division by zero
+        eps = 1e-12
+
+        # Calculate the exponential decay factor
+        gamma = (lr1 / (lr0 + eps)) ** (1 / (max_epochs - 1))
+
+        # Compute the learning rate factor for the current epoch
+        factor = gamma ** epoch
+
+    # Step based adjustments
+    elif schedule_type == 'steps':
+        factor = 1.0
+        for step in steps[::-1]:
+            if epoch + 1 >= step:
+                # Get index
+                ind = steps.index(step)
+
+                # Calculate the difference between the target learning rate and the initial learning rate
+                delta = lr1 - lr0
+
+                # Calculate the step size for each epoch
+                step_size = delta / (len(steps))
+
+                # Compute the learning rate for the current epoch
+                lr = lr0 + (step_size * (ind + 1))
+
+                # Compute the learning rate factor for the current epoch
+                factor = lr / lr0
+                break
+
+    # Linear learning rate schedule
+    else:
+        # Calculate the difference between the target learning rate and the initial learning rate
+        delta = lr1 - lr0
+
+        # Calculate the step size for each epoch
+        step_size = delta / (max_epochs - 1)
+
+        # Compute the learning rate for the current epoch
+        lr = lr0 + step_size * epoch
+
+        # Compute the learning rate factor for the current epoch
+        factor = lr / lr0
+
+    return factor
+
+
 def write_log_message(*args) -> None:
     """
     Writes a log message to the console.
 
     Args:
-        *args: Variable number of arguments to write a log message.
+        *args: Variable number of arguments to write into a log message.
     """
     timestamp = datetime.now().strftime("%H:%M:%S")
     message = " ".join(str(a) for a in args)
