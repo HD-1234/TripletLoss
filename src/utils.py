@@ -62,69 +62,6 @@ def set_worker_seed(worker_id):
     random.seed(worker_seed)
 
 
-def validate(model, data_loader, threshold, device) -> Tuple[float, float, float, float]:
-    """
-    Evaluates the model and returns precision, recall, f1-score and accuracy.
-
-    Returns:
-        tuple: a Tuple of floats.
-    """
-    # Set to eval mode
-    model.eval()
-
-    # Initialize tensors to accumulate results
-    batch_count = len(data_loader)
-    tp = torch.zeros(batch_count, device=device)
-    fp = torch.zeros(batch_count, device=device)
-    fn = torch.zeros(batch_count, device=device)
-    tn = torch.zeros(batch_count, device=device)
-
-    with torch.no_grad():
-        for ind, batch in enumerate(data_loader):
-            # Get triplets from batch
-            anchor, positive, negative = batch[:, 0], batch[:, 1], batch[:, 2]
-
-            # Data to device
-            anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
-
-            # Make predictions for this batch
-            out_anchor, out_positive, out_negative = model(anchor, positive, negative)
-
-            # Calculate L2 norm (Euclidean distance) between anchors and positive/negative samples
-            dist_ap = torch.norm(out_anchor - out_positive, dim=1)
-            dist_an = torch.norm(out_anchor - out_negative, dim=1)
-
-            # Get true positives and false positives
-            positive_criteria = (dist_ap <= threshold)
-            tp_c = torch.sum(positive_criteria).item()
-            fp_c = torch.sum(~positive_criteria).item()
-
-            # Get true negatives and false negatives
-            negative_criteria = (dist_an > threshold)
-            fn_c = torch.sum(~negative_criteria).item()
-            tn_c = torch.sum(negative_criteria).item()
-
-            # Update tensors
-            tp[ind] = tp_c
-            fp[ind] = fp_c
-            fn[ind] = fn_c
-            tn[ind] = tn_c
-
-    # Sum up results
-    tp = torch.sum(tp).item()
-    fp = torch.sum(fp).item()
-    fn = torch.sum(fn).item()
-    tn = torch.sum(tn).item()
-
-    # Calculate precision, recall, f1 and accuracy
-    precision = tp / (fp + tp) if (fp + tp) > 0 else 0.0
-    recall = tp / (fn + tp) if (fn + tp) > 0 else 0.0
-    f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
-    accuracy = (tp + tn) / (tp + fp + fn + tn) if (tp + fp + fn + tn) > 0 else 0.0
-
-    return precision, recall, f1_score, accuracy
-
-
 def calculate_lr_factor(
         lr0: float,
         lr1: float,
@@ -147,8 +84,9 @@ def calculate_lr_factor(
     Returns:
         float: The learning rate factor to be applied to the initial learning rate.
     """
-    # Set list
+    # Set steps & target learning rate
     steps = [] if steps is None else list(dict.fromkeys(steps))
+    lr1 = lr1 if lr1 else lr0
 
     # If the current epoch is 0 or the initial learning rate is already the target learning rate or the type is set to
     # 'fixed', no adjustment is needed.

@@ -9,6 +9,7 @@ import torch
 import torch.optim as optim
 
 from src.dataloader import TripletDataset
+from src.loss import SelectivelyContrastiveTripletLoss, TripletLossWithMargin
 from src.scheduler import Scheduler
 from src.modelloader import ModelLoader
 from src.utils import (
@@ -24,44 +25,54 @@ from src.utils import (
 def train():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--train-set', type=Path, required=True,
-                        help='Set the path to the training dataset directory.')
+                        help='Path to the training dataset directory.')
     parser.add_argument('-v', '--val-set', type=Path, required=True,
-                        help='Set the path to the validation dataset directory.')
+                        help='Path to the validation dataset directory.')
     parser.add_argument('-e', '--epochs', type=int, default=50,
-                        help='Set the number of epochs to train for.')
+                        help='Number of epochs to train for.')
     parser.add_argument('-b', '--batch-size', type=int, default=16,
-                        help='Set the batch size.')
+                        help='Batch size for training and validation.')
     parser.add_argument('-s', '--image-size', type=int, default=224,
-                        help='Set the image size.')
+                        help='Size of the input images.')
     parser.add_argument('-n', '--num-workers', type=int, default=2,
-                        help='Set the number of workers.')
+                        help='Number of workers for the dataloader.')
+    parser.add_argument('-m', '--margin', type=float, default=1.0,
+                        help='Margin value for the triplet loss function.')
     parser.add_argument('-l', '--learning-rate', type=float, default=0.0001,
-                        help='Set the learning rate for the optimizer.')
+                        help='Initial learning rate for the optimizer.')
     parser.add_argument('--target-lr', type=float, default=None,
-                        help='The learning rate at the end of training. If not specified, the learning rate is fixed.')
+                        help='Learning rate at the end of the training. If not specified, the learning rate is fixed.')
     parser.add_argument('--lr-steps', nargs='+', type=int, default=None,
-                        help='The epoch in which the learning rate should be adjusted. The new learning rate is '
-                             'calculated by the difference between the initial learning rate and the target learning '
-                             'rate divided by the number of steps.')
+                        help='Epochs at which the learning rate should be adjusted. The new learning rate is '
+                             'calculated based on the difference between the initial learning rate and the target '
+                             'learning rate divided by the number of steps.')
     parser.add_argument('--lr-schedule', type=str, default='fixed',
                         choices=['fixed', 'linear', 'exponential', 'steps'],
-                        help='Type of learning rate schedule. If not specified, learning rate is fixed.')
-    parser.add_argument('-m', '--margin', type=float, default=1.0,
-                        help='Set the margin value for the triplet loss function.')
+                        help='Type of learning rate schedule (Options: "fixed", "linear", "exponential", "steps").')
+    parser.add_argument('--positive-mining-strategy', type=str, default='random',
+                        choices=['random', 'easy'],
+                        help='Strategy for selecting positive samples (Options: "random", "easy").')
+    parser.add_argument('--negative-mining-strategy', type=str, default='semi-hard',
+                        choices=['random', 'semi-hard', 'hard'],
+                        help='Strategy for selecting negative samples (Options: "random", "semi-hard", "hard").')
+    parser.add_argument('--loss-function', type=str, default='TripletLoss', choices=['SCTLoss', 'TripletLoss'],
+                        help='Loss function to use (Options: "SCTLoss", "TripletLoss").')
+    parser.add_argument('--temperature', type=float, default=0.1,
+                        help='Temperature for the positive and negative scores. Only relevant when using SCTLoss.')
     parser.add_argument('--seed', type=int, default=42,
-                        help='Set the seed.')
+                        help='Random seed for reproducibility.')
     parser.add_argument('--augment', default=False, action=argparse.BooleanOptionalAction,
                         help='Whether to apply data augmentation during the training.')
     parser.add_argument('--early-stopping', type=int, default=-1,
                         help='Number of epochs without improvement before stopping the training. Set to -1 to disable.')
     parser.add_argument('--pretrained-weights', type=Path, default=None,
-                        help='Path to the pre-trained model weights file.')
-    parser.add_argument('--log-folder', type=Path, default="./runs",
+                        help='Path to the pre-trained weights.')
+    parser.add_argument('--log-folder', type=Path, default='./runs',
                         help='Directory where logs and other outputs will be saved.')
     parser.add_argument('--deterministic-algorithms', default=False, action=argparse.BooleanOptionalAction,
                         help='Whether deterministic algorithms should be used during training.')
     parser.add_argument('--model-name', type=str, default='ResNeXt50', choices=['ResNeXt50', 'ViT_B'],
-                        help='Choose the model to use.')
+                        help='Model architecture to use for training (Options: "ResNeXt50", "ViT_B").')
     args = parser.parse_args()
 
     # Set gpu, mps or cpu
@@ -115,7 +126,19 @@ def train():
     model = model.to(device)
 
     # Define loss function and optimizer
-    loss_fn = torch.nn.TripletMarginLoss(margin=args.margin)
+    if args.loss_function == "SCTLoss":
+        loss_fn = SelectivelyContrastiveTripletLoss(
+            positive_mining_strategy=args.positive_mining_strategy,
+            negative_mining_strategy=args.negative_mining_strategy,
+            temperature=args.temperature,
+            margin=args.margin
+        )
+    else:
+        loss_fn = TripletLossWithMargin(
+            positive_mining_strategy=args.positive_mining_strategy,
+            negative_mining_strategy=args.negative_mining_strategy,
+            margin=args.margin
+        )
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     # Sets the learning rate
