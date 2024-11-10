@@ -11,7 +11,7 @@ class TripletMiner:
 
         Args:
             positive_mining_strategy (str): Strategy for mining positive samples ('easy' or 'random').
-            negative_mining_strategy (str): Strategy for mining negative samples ('hard', 'semi-hard', or 'random').
+            negative_mining_strategy (str): Strategy for mining negative samples ('hard', 'semi-hard' or 'random').
             margin (float): Margin for the triplet loss.
         """
         super(TripletMiner, self).__init__()
@@ -20,7 +20,10 @@ class TripletMiner:
         self.margin = margin
 
     @staticmethod
-    def _filter_duplicates(embeddings: torch.Tensor, labels: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _filter_duplicates(
+            embeddings: torch.Tensor,
+            labels: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Removes duplicate embeddings and the corresponding labels.
 
@@ -29,7 +32,7 @@ class TripletMiner:
             labels (torch.Tensor): Tensor of labels.
 
         Returns:
-            Tuple: Unique embeddings and their corresponding labels.
+            Tuple: Unique embeddings, their corresponding labels and the unique indices.
         """
         # Find unique embeddings and return the corresponding indices and counts
         _, indices, counts = torch.unique(embeddings, dim=0, sorted=True, return_inverse=True, return_counts=True)
@@ -49,7 +52,7 @@ class TripletMiner:
         # Sort the unique indices and apply them to the embeddings and labels
         unique_indices, _ = torch.sort(unique_indices, stable=True)
 
-        return embeddings[unique_indices], labels[unique_indices]
+        return embeddings[unique_indices], labels[unique_indices], unique_indices
 
     @staticmethod
     def _calculate_similarity_scores(embeddings: torch.Tensor) -> torch.Tensor:
@@ -218,7 +221,7 @@ class TripletMiner:
             anchor_label: torch.Tensor,
             positive_label: torch.Tensor,
             negative_label: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Mines triplets based on the specified mining strategies.
 
@@ -231,14 +234,14 @@ class TripletMiner:
             negative_label (torch.Tensor): Tensor of negative labels.
 
         Returns:
-            Tuple: Scores and indices of the mined positive and negative samples and masks to filter out invalid scores.
+            Tuple: Scores, indices and masks of the mined samples and the unique indices.
         """
         # Concatenate the labels and the embeddings
         embeddings = torch.cat((anchor, positive, negative), 0)
         labels = torch.cat((anchor_label, positive_label, negative_label), 0)
 
         # Remove duplicate embeddings and the corresponding labels
-        embeddings, labels = self._filter_duplicates(embeddings=embeddings, labels=labels)
+        embeddings, labels, unique_ind = self._filter_duplicates(embeddings=embeddings, labels=labels)
 
         # Calculate the similarity scores between all pairs of embeddings
         scores = self._calculate_similarity_scores(embeddings=embeddings)
@@ -247,18 +250,18 @@ class TripletMiner:
         positive_mask, negative_mask = self._create_positive_and_negative_mask(labels=labels)
 
         # Mine positive samples based on the specified strategy
-        positive_scores, positive_indices, valid_positive = self._mine_positives(
+        positive_scores, positive_ind, valid_positive = self._mine_positives(
             scores=scores,
             positive_mask=positive_mask,
             negative_mask=negative_mask
         )
 
         # Mine negative samples based on the specified strategy
-        negative_scores, negative_indices, valid_negative = self._mine_negatives(
+        negative_scores, negative_ind, valid_negative = self._mine_negatives(
             scores=scores,
             positive_scores=positive_scores,
             positive_mask=positive_mask,
             negative_mask=negative_mask
         )
 
-        return positive_scores, negative_scores, positive_indices, negative_indices, valid_positive, valid_negative
+        return positive_scores, negative_scores, positive_ind, negative_ind, valid_positive, valid_negative, unique_ind

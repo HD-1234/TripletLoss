@@ -173,7 +173,7 @@ class SelectivelyContrastiveTripletLoss(Module):
         """
         if not eval_mode:
             # Mine samples and calculate the positive and negative scores
-            positive_scores, negative_scores, _, _, valid_positive, valid_negative = self.triplet_miner.mine_triplets(
+            positive_scores, negative_scores, _, _, valid_pos, valid_neg, _ = self.triplet_miner.mine_triplets(
                 anchor=anchor,
                 positive=positive,
                 negative=negative,
@@ -183,7 +183,7 @@ class SelectivelyContrastiveTripletLoss(Module):
             )
 
             # Create a mask to filter out invalid scores
-            valid_mask = valid_positive & valid_negative
+            valid_mask = valid_pos & valid_neg
         else:
             # Calculate the positive and negative scores
             positive_scores, negative_scores = self._calculate_similarity_scores(
@@ -271,8 +271,8 @@ class TripletLossWithMargin(Module):
             torch.Tensor: The computed loss.
         """
         if not eval_mode:
-            # Mine the positive and negative indices and create the corresponding masks
-            _, _, positive_indices, negative_indices, positive_mask, negative_mask = self.triplet_miner.mine_triplets(
+            # Mine the positive and negative indices, get the corresponding masks and the unique indices
+            _, _, positive_ind, negative_ind, valid_pos, valid_neg, unique_ind = self.triplet_miner.mine_triplets(
                 anchor=anchor,
                 positive=positive,
                 negative=negative,
@@ -285,12 +285,12 @@ class TripletLossWithMargin(Module):
             embeddings = torch.cat((anchor, positive, negative), 0)
 
             # Create a mask to filter out invalid indices
-            valid_mask = positive_mask & negative_mask
+            valid_mask = valid_pos & valid_neg
 
             # Get anchor, positive and negative
-            anchor = embeddings
-            positive = embeddings[positive_indices]
-            negative = embeddings[negative_indices]
+            anchor = embeddings[unique_ind]
+            positive = embeddings[positive_ind]
+            negative = embeddings[negative_ind]
 
             # Apply mask to anchor, positive and negative
             anchor = anchor[valid_mask]
