@@ -42,7 +42,7 @@ python train.py -t path/to/train/dataset -v path/to/val/dataset -e 50 -l 0.0001 
 To evaluate the model, run the `val.py` script with the necessary arguments. Here's an example:
 
 ```bash
-python val.py -p path/to/test/dataset -m path/to/model -t 2.0
+python val.py -p path/to/test/dataset -m path/to/model
 ```
 
 ## Overview
@@ -51,24 +51,28 @@ python val.py -p path/to/test/dataset -m path/to/model -t 2.0
 **Main Script**: Handles the training of the image embedding model.
 
 **Arguments**:
+- `-e`, `--epochs`: Number of epochs to train for (default: 50).
 - `-t`, `--train-set`: Path to the training dataset directory.
 - `-v`, `--val-set`: Path to the validation dataset directory.
-- `-e`, `--epochs`: Number of epochs to train for (default: 50).
-- `-b`, `--batch-size`: Batch size (default: 4).
-- `-s`, `--image-size`: Image size (default: 224).
-- `-n`, `--num-workers`: Number of workers for data loading (default: 0).
+- `-b`, `--batch-size`: Batch size (default: 16).
+- `-s`, `--image-size`: Size of the input images (default: 224).
+- `-n`, `--num-workers`: Number of workers for the dataloader (default: 2).
 - `-m`, `--margin`: Margin value for the triplet loss function (default: 1.5).
-- `-l`, `--learning-rate`: Learning rate for the optimizer (default: 0.0001).
-- `--target-lr`: The learning rate at the end of training. If not specified, the learning rate is fixed (default: None).
+- `-l`, `--learning-rate`: Initial learning rate for the optimizer (default: 0.0001).
+- `--target-lr`: Learning rate at the end of the training. If not specified, the learning rate is fixed (default: None).
 - `--lr-steps`: The epoch in which the learning rate should be adjusted. The new learning rate is calculated by the difference between the initial learning rate and the target learning rate divided by the number of steps (default: None).
 - `--lr-schedule`: Type of learning rate schedule. Choose from 'fixed', 'linear', 'exponential' or 'steps' (default: 'fixed').
-- `--seed`: Seed for reproducibility (default: 42).
-- `--augment`: Apply data augmentation during training (default: False).
+- `--positive-mining-strategy`: The mining strategy for positive samples. Choose from 'random' or 'easy' (default: 'random').
+- `--negative-mining-strategy`: The mining strategy for negative samples. Choose from 'random', 'semi-hard' or 'hard' (default: 'semi-hard').
+- `--loss-function`: Loss function to use. Choose from 'TripletLoss' or 'SCTLoss' (default: 'TripletLoss').
+- `--temperature`: Temperature for the positive and negative scores. Only relevant when using SCTLoss (default: 0.1).
+- `--seed`: Random seed for reproducibility (default: 42).
+- `--augment`: Whether to apply data augmentation during the training (default: False).
 - `--early-stopping`: Number of epochs without improvement before stopping the training. Set to -1 to disable (default: -1).
-- `--pretrained-weights`: Path to the pre-trained model weights file (default: None).
-- `--log-folder`: Directory where logs and other outputs will be saved (default: `./runs`).
-- `--deterministic-algorithms`: Use deterministic algorithms during training (default: False).
-- `--model-name`: Choose the model to use (default: `ResNeXt50`).
+- `--pretrained-weights`: Path to the pre-trained weights (default: None).
+- `--log-folder`: Directory where logs and other outputs will be saved (default: './runs').
+- `--deterministic-algorithms`: Whether deterministic algorithms should be used during training (default: False).
+- `--model-name`: Model architecture to train. Choose from 'ResNeXt50' or 'ViT_B' (default: 'ResNeXt50').
 
 ### `val.py`
 **Evaluation Script**: Handles the evaluation of the trained model.
@@ -76,12 +80,11 @@ python val.py -p path/to/test/dataset -m path/to/model -t 2.0
 **Arguments**:
 - `-p`, `--path`: Path to the test dataset directory.
 - `-m`, `--model`: Path to the trained model.
-- `-s`, `--image-size`: Image size (default: 224).
-- `-b`, `--batch-size`: Batch size (default: 4).
-- `-n`, `--num-workers`: Number of workers for data loading (default: 0).
-- `-t`, `--threshold`: The threshold to identify similar images (default: 1.5).
+- `-s`, `--image-size`: Size of the input images (default: 224).
+- `-b`, `--batch-size`: Batch size (default: 16).
+- `-n`, `--num-workers`: Number of workers for data loading (default: 4).
 - `--seed`: Seed for reproducibility (default: 42).
-- `--model-name`: Choose the model to use (default: `ResNeXt50`).
+- `--model-name`: Model architecture of the chosen model. Choose from 'ResNeXt50' or 'ViT_B' (default: `ResNeXt50`).
 
 
 ## Data

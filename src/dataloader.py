@@ -107,7 +107,7 @@ class TripletDataset(Dataset):
                 if image.mode != 'RGB':
                     image = image.convert('RGB')
         else:
-            raise ValueError(f"Extension '{ext}' is not a supported file format.")
+            raise ValueError(f"Extension '{ext}' in '{path}' is not a supported file format.")
 
         return image
 
@@ -126,36 +126,42 @@ class TripletDataset(Dataset):
 
         return image_resized
 
-    def get_paths(self, index: int) -> Tuple[str, str, str]:
+    def get_paths(self, index: int) -> Tuple[Tuple[str, str, str], Tuple[int, int, int]]:
         """
-        Gets a tuple of paths.
+        Get the file paths and labels for the anchor, positive and negative images.
 
         Args:
             index (int): The index of the template to use for anchor and positive samples.
 
         Returns:
-            Tuple: A tuple containing anchor, positive, and negative file paths.
+            Tuple: A tuple containing the file paths and labels.
         """
-        # Get template name
+        # Get the template name corresponding to the given index
         template = self.index_to_template[index]
 
-        # Randomly select new template if template has only 1 sample
+        # Randomly select another template if the template has only one sample
         if template not in self.templates_with_multiple_samples:
             template = random.choice(self.templates_with_multiple_samples)
 
-        # Randomly select anchor and positive sample
+        # Randomly select an anchor and a positive sample from the chosen template
         anchor, positive = random.sample(self.paths[template], k=2)
 
-        # Select negative sample from different template
+        # Randomly select a negative sample from a different template
         template_negative = random.choice([t for t in self.templates if t != template])
         negative = random.choice(self.paths[template_negative])
 
-        return anchor, positive, negative
+        # Get the labels for the anchor, positive, and negative samples
+        labels = self.templates.index(template), self.templates.index(template), self.templates.index(template_negative)
+
+        # Pack the paths
+        paths = (anchor, positive, negative)
+
+        return paths, labels
 
     def __len__(self) -> int:
         return len(self.index_to_template)
 
-    def __getitem__(self, index: int) -> torch.Tensor:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Gets a triplet of images.
 
@@ -163,23 +169,31 @@ class TripletDataset(Dataset):
             index (int): The index of the template to use for anchor and positive samples.
 
         Returns:
-            Tuple: A tensor containing anchor, positive, and negative image tensors.
+            Tuple: A Tuple containing a tensor of the anchor, positive and negative images and another tensor for the
+            corresponding labels.
         """
-        a, p, n = self.get_paths(index)
+        # Get the paths and labels for the anchor, positive, and negative images
+        paths, labels = self.get_paths(index)
 
-        # Load images
-        anchor = self._load_image(a)
-        positive = self._load_image(p)
-        negative = self._load_image(n)
+        # Unpack the paths
+        anchor_path, positive_path, negative_path = paths
+
+        # Load the images
+        anchor = self._load_image(anchor_path)
+        positive = self._load_image(positive_path)
+        negative = self._load_image(negative_path)
 
         # Resize the images
         anchor = self.resize_image(anchor)
         positive = self.resize_image(positive)
         negative = self.resize_image(negative)
 
-        # Eventually augment the images, normalize them and transform them to tensor
+        # Normalize the images and transform them to a tensor. Eventually augment the images.
         anchor = self.transform(anchor)
         positive = self.transform(positive)
         negative = self.transform(negative)
 
-        return torch.stack((anchor, positive, negative))
+        # Convert labels to tensor
+        labels_tensor = torch.tensor(labels, dtype=torch.long)
+
+        return torch.stack((anchor, positive, negative)), labels_tensor

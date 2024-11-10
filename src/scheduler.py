@@ -28,31 +28,6 @@ class Scheduler:
         self.training_loader = training_loader
         self.validation_loader = validation_loader
 
-    @staticmethod
-    def _semi_hard_mining(anchors: Tensor, positives: Tensor, negatives: Tensor, margin: float = 1.0) -> Tensor:
-        """
-        Performs semi-hard mining.
-
-        Args:
-            anchors (Tensor): The anchor samples.
-            positives (Tensor): The positive samples.
-            negatives (Tensor): The negative samples.
-
-        Returns:
-            Tensor: The semi hard negative samples.
-        """
-        # Calculate pairwise distance between anchors and positive/negative samples
-        dist_ap = torch.cdist(anchors, positives)
-        dist_an = torch.cdist(anchors, negatives)
-
-        # Define Condition
-        semi_hard_negative_mask = (dist_an < dist_ap + margin) & (dist_an > dist_ap)
-
-        # Get indices of the minimum semi-hard negative samples, setting unmatched distances to infinity
-        indices = torch.where(semi_hard_negative_mask, dist_an, torch.inf).min(dim=1).indices
-
-        return negatives[indices, :]
-
     def train_one_epoch(self, lr_scheduler: LRScheduler) -> Tensor:
         """
         Trains the model for one epoch.
@@ -68,29 +43,31 @@ class Scheduler:
 
         train_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         for batch in self.training_loader:
+            # Unpack the batch
+            data, labels = batch
+
             # Get triplets from batch
-            anchor, positive, negative = batch[:, 0], batch[:, 1], batch[:, 2]
+            anchor, positive, negative = data[:, 0], data[:, 1], data[:, 2]
+            anchor_label, positive_label, negative_label = labels[:, 0], labels[:, 1], labels[:, 2]
 
             # Data to device
             anchor, positive, negative = anchor.to(self.device), positive.to(self.device), negative.to(self.device)
+            anchor_label, positive_label, negative_label = anchor_label.to(self.device), positive_label.to(self.device), negative_label.to(self.device)
 
             # Reset gradients
             self.optimizer.zero_grad()
 
             # Make predictions for this batch
-            out_anchor, out_positive, out_negative = self.model(anchor, positive, negative)
-
-            # Perform semi-hard mining
-            semi_hard_negative = self._semi_hard_mining(out_anchor, out_positive, out_negative)
+            anchor, positive, negative = self.model(anchor, positive, negative)
 
             # Compute the loss and its gradients
-            loss = self.loss_fn(out_anchor, out_positive, semi_hard_negative)
+            loss = self.loss_fn(anchor, positive, negative, anchor_label, positive_label, negative_label)
             loss.backward()
 
-            # Adjust learning weights
+            # Update the model parameters by applying the computed gradients
             self.optimizer.step()
 
-            # Add loss to total loss
+            # Add the loss for the current batch to the total training loss
             train_loss += loss.item()
 
         # Adjust the learning rate
@@ -111,16 +88,30 @@ class Scheduler:
         val_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         with torch.no_grad():
             for batch in self.validation_loader:
+                # Unpack the batch
+                data, labels = batch
+
                 # Get triplets from batch
-                anchor, positive, negative = batch[:, 0], batch[:, 1], batch[:, 2]
+                anchor, positive, negative = data[:, 0], data[:, 1], data[:, 2]
+                anchor_label, positive_label, negative_label = labels[:, 0], labels[:, 1], labels[:, 2]
 
                 # Data to device
                 anchor, positive, negative = anchor.to(self.device), positive.to(self.device), negative.to(self.device)
+                anchor_label, positive_label, negative_label = anchor_label.to(self.device), positive_label.to(
+                    self.device), negative_label.to(self.device)
 
                 # Make predictions for this batch
-                out_anchor, out_positive, out_negative = self.model(anchor, positive, negative)
+                anchor, positive, negative = self.model(anchor, positive, negative)
 
-                # Compute the loss and add it to total loss
-                val_loss += self.loss_fn(out_anchor, out_positive, out_negative)
+                # Compute the loss for the current batch and add it to the total validation loss
+                val_loss += self.loss_fn(
+                    anchor=anchor,
+                    positive=positive,
+                    negative=negative,
+                    anchor_label=anchor_label,
+                    positive_label=positive_label,
+                    negative_label=negative_label,
+                    eval_mode=True
+                )
 
         return val_loss
