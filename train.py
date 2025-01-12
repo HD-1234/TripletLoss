@@ -8,7 +8,7 @@ from datetime import datetime
 import torch
 import torch.optim as optim
 
-from src.dataloader import TripletDataset
+from src.dataset import TripletDataset
 from src.loss import SelectivelyContrastiveTripletLoss, TripletLossWithMargin
 from src.scheduler import Scheduler
 from src.modelloader import ModelLoader

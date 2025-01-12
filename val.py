@@ -1,13 +1,13 @@
 import argparse
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Optional
 
 import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.utils.data.dataloader import DataLoader
 
-from src.dataloader import TripletDataset
+from src.dataset import TripletDataset
 from src.modelloader import ModelLoader
 from src.utils import set_seed, write_log_message, set_worker_seed
 
@@ -82,7 +82,8 @@ def calculate_distances(model: nn.Module, data_loader: DataLoader, device: str) 
 def calculate_metrics(
         positives: torch.tensor,
         negatives: torch.tensor,
-        eps: float = 1e-12
+        eps: float = 1e-12,
+        threshold: Optional[float] = None
 ) -> Tuple[float, float, float, float, float]:
     """
     Calculates accuracy, F1-score, recall and precision for different thresholds.
@@ -91,6 +92,8 @@ def calculate_metrics(
         positives (torch.Tensor): Positive distances.
         negatives (torch.Tensor): Negative distances.
         eps (float): Small epsilon to avoid division by zero.
+        threshold (Optional[float]): The threshold to use for calculating the metrics. If not provided, the best
+            threshold will be calculated.
 
     Returns:
         Tuple: A tuple containing the best threshold and the corresponding accuracy, F1-score, recall, and precision.
@@ -112,19 +115,23 @@ def calculate_metrics(
 
     # Calculate the best threshold
     else:
-        # Generate the thresholds between the minimum positive and maximum negative distances
-        thresholds = torch.linspace(min_pos, max_neg, 1000)
-        results = torch.zeros((1000, 4))
+        if threshold is None:
+            # Generate the thresholds between the minimum positive and maximum negative distances
+            thresholds = torch.linspace(min_pos, max_neg, 1000)
+        else:
+            thresholds = torch.tensor([threshold])
+
+        results = torch.zeros((thresholds.shape[0], 4))
 
         # Iterate over each threshold
         for ind, threshold in enumerate(thresholds):
             # Calculate true positives and false positives
             tp = torch.sum(positives < threshold)
-            fp = positives.size(0) - tp
+            fn = positives.size(0) - tp
 
             # Calculate true negatives and false negatives
             tn = torch.sum(negatives >= threshold)
-            fn = negatives.size(0) - tn
+            fp = negatives.size(0) - tn
 
             # Calculate metrics
             accuracy = (tp + tn) / (positives.size(0) + negatives.size(0) + eps)
@@ -138,8 +145,10 @@ def calculate_metrics(
             results[ind, 2] = recall
             results[ind, 3] = precision
 
-        # Find the index of the maximum F1-score
-        index = torch.argmax(results[:, 1])
+        # Find the best index
+        scores = torch.zeros(results[:, 0].shape)
+        scores += ((results[:, 3] * 0.9) + (results[:, 1] * 0.1))
+        index = torch.argmax(scores[:])
 
         # Get the best threshold and the corresponding metrics
         threshold = thresholds[index].item()
@@ -158,9 +167,12 @@ def val():
     parser.add_argument('-s', '--image-size', type=int, default=224, help='Size of the input images.')
     parser.add_argument('-b', '--batch-size', type=int, default=16, help='Batch size for evaluation.')
     parser.add_argument('-n', '--num-workers', type=int, default=4, help='Number of workers for the dataloader.')
+    parser.add_argument('-t', '--threshold', type=float, default=None,
+                        help='The threshold for calculating the metrics. If not provided, the best threshold will be '
+                             'calculated.')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility.')
-    parser.add_argument('--model-name', type=str, default='ResNeXt50', choices=['ResNeXt50', 'ViT_B'], 
-                        help='Model architecture of the chosen model (Options: "ResNeXt50", "ViT_B").')
+    parser.add_argument('--model-name', type=str, default='ResNeXt50', choices=['ResNeXt50', 'ViT_B'],
+                        help='Model architecture to use (Options: "ResNeXt50", "ViT_B").')
     args = parser.parse_args()
 
     # Set gpu, mps or cpu
@@ -197,10 +209,14 @@ def val():
     positives, negatives = calculate_distances(model=model, data_loader=test_loader, device=device)
 
     # Calculate the evaluation metrics
-    threshold, accuracy, f1_score, recall, precision = calculate_metrics(positives=positives, negatives=negatives)
+    threshold, accuracy, f1_score, recall, precision = calculate_metrics(
+        positives=positives,
+        negatives=negatives,
+        threshold=args.threshold
+    )
 
     # Print the evaluation metrics
-    write_log_message(f"Results at best threshold of '{threshold:.2f}'")
+    write_log_message(f"Results at{' best' if not args.threshold else ''} threshold of '{threshold:.2f}'")
     write_log_message(f"Accuracy: {accuracy:.2f}")
     write_log_message(f"F1-Score: {f1_score:.2f}")
     write_log_message(f"Recall: {recall:.2f}")
