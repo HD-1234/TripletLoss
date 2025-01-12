@@ -1,20 +1,21 @@
 import random
 import os
+from collections import defaultdict
+
+import pypdfium2 as pdfium
 import torch
-import pikepdf
 
 from PIL import Image
 from typing import List, Tuple
 
-from pikepdf import PdfImage
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 
 
-class TripletDataset(Dataset):
+class BaseDataset(Dataset):
     def __init__(self, path: str, size: int, augmentation: bool = False) -> None:
         """
-        Initializes the dataloader.
+        Initializes the base dataset.
 
         Args:
             path (str): The directory containing images.
@@ -46,9 +47,6 @@ class TripletDataset(Dataset):
             raise FileNotFoundError(f"Directory '{path}' does not exist.")
 
         self.paths = self._get_files(path)
-        self.templates = list(self.paths.keys())
-        self.index_to_template = {i: p for i, p in enumerate([p for template in self.paths.values() for p in template])}
-        self.templates_with_multiple_samples = self._get_templates_with_multiple_samples(self.paths)
 
     @staticmethod
     def _get_files(path: str) -> dict:
@@ -61,13 +59,19 @@ class TripletDataset(Dataset):
         Returns:
             dict: A dictionary where keys are template names and values are lists of image paths.
         """
-        paths = dict()
+        # Allowed file extensions
+        allowed_file_ext = ['.pdf', '.jpg', '.jpeg', '.png', '.tiff']
+
+        paths = defaultdict(list)
         for root, dirs, files in os.walk(path):
             if not dirs:
                 folder_name = os.path.basename(root)
-                if folder_name not in paths:
-                    paths[folder_name] = list()
-                paths[folder_name].extend([os.path.join(root, file) for file in files])
+                for file in files:
+                    # Only add files with the allowed file extension
+                    _, ext = os.path.splitext(file)
+                    if ext not in allowed_file_ext:
+                        continue
+                    paths[folder_name].append(os.path.join(root, file))
         return paths
 
     @staticmethod
@@ -77,10 +81,10 @@ class TripletDataset(Dataset):
     @staticmethod
     def _load_image(path: str) -> Image.Image:
         """
-        Gets a file path.
+        Loads an image from a file path.
 
         Args:
-            path (str): The path to the image.
+            path (str): The path to the file.
 
         Returns:
             Image.Image: A PIL Image.
@@ -89,31 +93,28 @@ class TripletDataset(Dataset):
         _, ext = os.path.splitext(path)
         if ext.lower() in ['.jpg', '.jpeg', '.png', '.tiff']:
             image = Image.open(path).convert('RGB')
-        # Open the PDFs using pikepdf
+        # Open the PDFs using pypdfium2
         elif ext.lower() == '.pdf':
-            with pikepdf.Pdf.open(path) as pdf:
-                # Get the first page
-                page = pdf.pages[0]
+            # Open PDF
+            pdf = pdfium.PdfDocument(input=path, autoclose=True)
 
-                # Get the page key
-                page_key = list(page.images.keys())[0]
+            # Render first page and convert the page to PIL format
+            image = pdf[0].render(scale=300/72).to_pil()
 
-                # Render the page into a PIL Image
-                raw_page = page.images[page_key]
-                pdf_image = PdfImage(raw_page)
-                image = pdf_image.as_pil_image()
+            # Ensure the image is in RGB mode
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
 
-                # Ensure the image is in RGB mode
-                if image.mode != 'RGB':
-                    image = image.convert('RGB')
+            # Close PDF
+            pdf.close()
         else:
             raise ValueError(f"Extension '{ext}' in '{path}' is not a supported file format.")
 
         return image
 
-    def resize_image(self, image: Image.Image) -> Image.Image:
+    def _resize_image(self, image: Image.Image) -> Image.Image:
         """
-        Gets a PIL Image.
+        Resizes the image to the specified size.
 
         Args:
             image (Image.Image): The image that will be resized.
@@ -123,8 +124,28 @@ class TripletDataset(Dataset):
         """
         # Resize Image
         image_resized = image.resize((self.size, self.size))
-
         return image_resized
+
+
+class TripletDataset(BaseDataset):
+    def __init__(self, path: str, size: int, augmentation: bool = False) -> None:
+        """
+        Initializes the triplet dataset.
+
+        Args:
+            path (str): The directory containing images.
+            size (int): The image size.
+            augmentation (bool): Whether to apply data augmentation or not.
+        """
+        super().__init__(path=path, size=size, augmentation=augmentation)
+
+        self.templates = list(self.paths.keys())
+        self.index_to_template = {i: p for i, p in enumerate([p for template in self.paths.values() for p in template])}
+        self.templates_with_multiple_samples = self._get_templates_with_multiple_samples(self.paths)
+
+    @staticmethod
+    def _get_templates_with_multiple_samples(paths: dict) -> List[str]:
+        return [t for t, files in paths.items() if len(files) >= 2]
 
     def get_paths(self, index: int) -> Tuple[Tuple[str, str, str], Tuple[int, int, int]]:
         """
@@ -184,9 +205,9 @@ class TripletDataset(Dataset):
         negative = self._load_image(negative_path)
 
         # Resize the images
-        anchor = self.resize_image(anchor)
-        positive = self.resize_image(positive)
-        negative = self.resize_image(negative)
+        anchor = self._resize_image(anchor)
+        positive = self._resize_image(positive)
+        negative = self._resize_image(negative)
 
         # Normalize the images and transform them to a tensor. Eventually augment the images.
         anchor = self.transform(anchor)
@@ -197,3 +218,41 @@ class TripletDataset(Dataset):
         labels_tensor = torch.tensor(labels, dtype=torch.long)
 
         return torch.stack((anchor, positive, negative)), labels_tensor
+
+
+class InferenceDataset(BaseDataset):
+    def __init__(self, path: str, size: int) -> None:
+        """
+        Initializes the inference dataset.
+
+        Args:
+            path (str): The directory containing images.
+            size (int): The image size.
+        """
+        super().__init__(path=path, size=size)
+
+        self.paths = [p for lst in self._get_files(path).values() for p in lst]
+
+    def __len__(self) -> int:
+        return len(self.paths)
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, str]:
+        """
+        Gets an image and its path.
+
+        Args:
+            index (int): The index of the image.
+
+        Returns:
+            Tuple: A tuple containing the image tensor and the file path.
+        """
+        # Load the image
+        image = self._load_image(self.paths[index])
+
+        # Resize the image
+        image = self._resize_image(image)
+
+        # Normalize the image and transform it to a tensor.
+        image = self.transform(image)
+
+        return image, self.paths[index]

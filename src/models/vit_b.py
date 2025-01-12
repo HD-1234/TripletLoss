@@ -1,10 +1,11 @@
 from collections import OrderedDict
-from typing import Tuple
 
 import torch
 import torch.nn as nn
 from torch import Tensor
 import math
+
+from src.models.base_model import BaseEmbeddingModel
 
 
 class MultiHeadAttention(nn.Module):
@@ -424,7 +425,7 @@ class VisionTransformer(nn.Module):
         return out
 
 
-class VisionTransformerB(nn.Module):
+class VisionTransformerB(BaseEmbeddingModel):
     def __init__(self, pretrained_weights: str = None, image_size: int = 224) -> None:
         """
         Initializes the Vision Transformer model.
@@ -433,34 +434,23 @@ class VisionTransformerB(nn.Module):
             pretrained_weights (str): Path to the pre-trained weights.
             image_size (int): The size of the input image.
         """
-        super(VisionTransformerB, self).__init__()
+        super(VisionTransformerB, self).__init__(pretrained_weights=pretrained_weights, image_size=image_size)
 
-        # Initialize the Vision Transformer model
-        self.embedding_model = VisionTransformer(img_size=image_size)
-
-        # Load pre-trained weights if provided
-        if pretrained_weights is not None:
-            self.embedding_model.load_state_dict(torch.load(pretrained_weights, weights_only=True))
-
-        # Replace the last layer with a new one
-        num_features = self.embedding_model.heads.head.in_features
-        self.embedding_model.heads.head = nn.Linear(num_features, 128)
-
-    def forward(self, anchor: Tensor, positive: Tensor, negative: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+    def _initialize_model(self, image_size: int) -> nn.Module:
         """
-        Forward pass through the document embedding model.
+        Initializes the specific embedding model
 
         Args:
-            anchor (Tensor): Anchor tensor.
-            positive (Tensor): Positive tensor.
-            negative (Tensor): Negative tensor.
+            image_size (int): The size of the input image.
 
         Returns:
-            Tuple: The output tensors.
+            nn.Module: The initialized model.
         """
-        # Pass the anchor, positive, and negative tensors through the Vision Transformer model
-        anchor = self.embedding_model(anchor)
-        positive = self.embedding_model(positive)
-        negative = self.embedding_model(negative)
+        return VisionTransformer(img_size=image_size)
 
-        return anchor, positive, negative
+    def _replace_last_layer(self) -> None:
+        """
+        Replaces the last layer of the model.
+        """
+        num_features = self.embedding_model.heads.head.in_features
+        self.embedding_model.heads.head = nn.Linear(num_features, 128)

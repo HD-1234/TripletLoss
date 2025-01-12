@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
+from src.models.base_model import BaseEmbeddingModel
+
 
 class ResNeXt(nn.Module):
     def __init__(self, groups: int = 32, width_per_group: int = 4) -> None:
@@ -292,42 +294,29 @@ class Bottleneck(nn.Module):
         return out
 
 
-class ResNeXt50(nn.Module):
+class ResNeXt50(BaseEmbeddingModel):
     def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
         """
         Initializes the document embedding model.
 
         Args:
             pretrained_weights (str): Path to the pre-trained weights.
+            **kwargs: Additional arguments.
         """
-        super(ResNeXt50, self).__init__()
+        super(ResNeXt50, self).__init__(pretrained_weights=pretrained_weights)
 
-        # Initialize the ResNeXt model
-        self.embedding_model = ResNeXt()
-
-        # Load pre-trained weights if provided
-        if pretrained_weights is not None:
-            self.embedding_model.load_state_dict(torch.load(pretrained_weights, weights_only=True))
-
-        # Replace last layer with a new one
-        num_features = self.embedding_model.fc.in_features
-        self.embedding_model.fc = torch.nn.Linear(num_features, 128)
-
-    def forward(self, anchor: Tensor, positive: Tensor, negative: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+    def _initialize_model(self) -> nn.Module:
         """
-        Forward pass through the document embedding model.
-
-        Args:
-            anchor (Tensor): Anchor tensor.
-            positive (Tensor): Positive tensor.
-            negative (Tensor): Negative tensor.
+        Initializes the specific embedding model
 
         Returns:
-            Tuple: The output tensors.
+            nn.Module: The initialized model.
         """
-        # Pass the anchor, positive and negative tensors through the ResNeXt model
-        anchor = self.embedding_model(anchor)
-        positive = self.embedding_model(positive)
-        negative = self.embedding_model(negative)
+        return ResNeXt()
 
-        return anchor, positive, negative
+    def _replace_last_layer(self) -> None:
+        """
+        Replaces the last layer of the model.
+        """
+        num_features = self.embedding_model.fc.in_features
+        self.embedding_model.fc = torch.nn.Linear(num_features, 128)

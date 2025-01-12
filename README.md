@@ -17,7 +17,7 @@ This project is a deep learning implementation for training a triplet loss-based
 - torchvision
 - tensorboard
 - tqdm
-- pikepdf
+- pypdfium2
 - numpy
 - pillow
 - pyyaml
@@ -31,18 +31,25 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Training the Model
+### Training the model
 To train the model, run the `train.py` script with the necessary arguments. Here's an example:
 
 ```bash
 python train.py -t path/to/train/dataset -v path/to/val/dataset -e 50 -l 0.0001 -b 8 -m 1.0
 ```
 
-### Evaluating the Model
+### Evaluating the model
 To evaluate the model, run the `val.py` script with the necessary arguments. Here's an example:
 
 ```bash
 python val.py -p path/to/test/dataset -m path/to/model
+```
+
+### Running inference with the model
+To run the inference script, use the following command:
+
+```bash
+python predict.py -i path/to/input/directory -o path/to/output/directory -m path/to/model -t 0.20
 ```
 
 ## Overview
@@ -83,8 +90,26 @@ python val.py -p path/to/test/dataset -m path/to/model
 - `-s`, `--image-size`: Size of the input images (default: 224).
 - `-b`, `--batch-size`: Batch size (default: 16).
 - `-n`, `--num-workers`: Number of workers for data loading (default: 4).
+- `-t`, `--threshold`: The threshold for calculating the metrics. If not provided, the best threshold will be calculated (default: None).
 - `--seed`: Seed for reproducibility (default: 42).
-- `--model-name`: Model architecture of the chosen model. Choose from 'ResNeXt50' or 'ViT_B' (default: `ResNeXt50`).
+- `--model-name`: Model architecture to use. Choose from 'ResNeXt50' or 'ViT_B' (default: `ResNeXt50`).
+
+### `predict.py`
+**Inference Script**: Handles the prediction and clustering of files using the trained model.
+
+**Arguments**:
+- `-i`, `--input-path`: Path to the input directory containing files to be sorted.
+- `-o`, `--output-path`: Path to the output directory where sorted files will be stored.
+- `-m`, `--model`: Path to the trained model.
+- `-t`, `--threshold`: Threshold for clustering files. The best threshold can be calculated by `val.py`.
+- `-s`, `--image-size`: Size of the input images (default: 224).
+- `-b`, `--batch-size`: Batch size (default: 16).
+- `-n`, `--num-workers`: Number of workers for data loading (default: 4).
+- `--seed`: Seed for reproducibility (default: 42).
+- `--model-name`: Model architecture to use. Choose from 'ResNeXt50' or 'ViT_B' (default: `ResNeXt50`).
+- `--clustering-strategy`: Choose the clustering strategy from "all" or "avg". "all" means that every distance between a file and the files in an existing cluster must be lower than or equal to the threshold. "avg" means that the average distance between a file and the files in an existing cluster must be lower than or equal to the threshold (default: `avg`).
+
+### Example Usage
 
 
 ## Data

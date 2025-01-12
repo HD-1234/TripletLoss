@@ -1,7 +1,7 @@
 import os
 import random
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 
 import yaml
 from datetime import datetime
