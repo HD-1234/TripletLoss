@@ -8,6 +8,9 @@ import math
 from src.models.base_model import BaseEmbeddingModel
 
 
+__all__ = ["VisionTransformerB16", "VisionTransformerB32", "VisionTransformerL16", "VisionTransformerL32"]
+
+
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model: int, num_heads: int) -> None:
         """
@@ -425,16 +428,16 @@ class VisionTransformer(nn.Module):
         return out
 
 
-class VisionTransformerB(BaseEmbeddingModel):
+class VisionTransformerL32(BaseEmbeddingModel):
     def __init__(self, pretrained_weights: str = None, image_size: int = 224) -> None:
         """
-        Initializes the Vision Transformer model.
+        Initializes a ViT-Large model with a patch size of 32.
 
         Args:
             pretrained_weights (str): Path to the pre-trained weights.
             image_size (int): The size of the input image.
         """
-        super(VisionTransformerB, self).__init__(pretrained_weights=pretrained_weights, image_size=image_size)
+        super(VisionTransformerL32, self).__init__(pretrained_weights=pretrained_weights, image_size=image_size)
 
     def _initialize_model(self, image_size: int) -> nn.Module:
         """
@@ -446,7 +449,128 @@ class VisionTransformerB(BaseEmbeddingModel):
         Returns:
             nn.Module: The initialized model.
         """
-        return VisionTransformer(img_size=image_size)
+        return VisionTransformer(
+            img_size=image_size,
+            patch_size=32,
+            embedding_dim=1024,
+            num_heads=16,
+            num_layers=24,
+            mlp_dim=4096
+        )
+
+    def _replace_last_layer(self) -> None:
+        """
+        Replaces the last layer of the model.
+        """
+        num_features = self.embedding_model.heads.head.in_features
+        self.embedding_model.heads.head = nn.Linear(num_features, 128)
+
+
+class VisionTransformerL16(BaseEmbeddingModel):
+    def __init__(self, pretrained_weights: str = None, image_size: int = 224) -> None:
+        """
+        Initializes a ViT-Large model with a patch size of 16.
+
+        Args:
+            pretrained_weights (str): Path to the pre-trained weights.
+            image_size (int): The size of the input image.
+        """
+        super(VisionTransformerL16, self).__init__(pretrained_weights=pretrained_weights, image_size=image_size)
+
+    def _initialize_model(self, image_size: int) -> nn.Module:
+        """
+        Initializes the specific embedding model
+
+        Args:
+            image_size (int): The size of the input image.
+
+        Returns:
+            nn.Module: The initialized model.
+        """
+        return VisionTransformer(
+            img_size=image_size,
+            patch_size=16,
+            embedding_dim=1024,
+            num_heads=16,
+            num_layers=24,
+            mlp_dim=4096
+        )
+
+    def _replace_last_layer(self) -> None:
+        """
+        Replaces the last layer of the model.
+        """
+        num_features = self.embedding_model.heads.head.in_features
+        self.embedding_model.heads.head = nn.Linear(num_features, 128)
+
+
+class VisionTransformerB32(BaseEmbeddingModel):
+    def __init__(self, pretrained_weights: str = None, image_size: int = 224) -> None:
+        """
+        Initializes a ViT-Base model with a patch size of 32.
+
+        Args:
+            pretrained_weights (str): Path to the pre-trained weights.
+            image_size (int): The size of the input image.
+        """
+        super(VisionTransformerB32, self).__init__(pretrained_weights=pretrained_weights, image_size=image_size)
+
+    def _initialize_model(self, image_size: int) -> nn.Module:
+        """
+        Initializes the specific embedding model
+
+        Args:
+            image_size (int): The size of the input image.
+
+        Returns:
+            nn.Module: The initialized model.
+        """
+        return VisionTransformer(
+            img_size=image_size,
+            patch_size=32,
+            embedding_dim=768,
+            num_heads=12,
+            num_layers=12,
+            mlp_dim=3072
+        )
+
+    def _replace_last_layer(self) -> None:
+        """
+        Replaces the last layer of the model.
+        """
+        num_features = self.embedding_model.heads.head.in_features
+        self.embedding_model.heads.head = nn.Linear(num_features, 128)
+
+
+class VisionTransformerB16(BaseEmbeddingModel):
+    def __init__(self, pretrained_weights: str = None, image_size: int = 224) -> None:
+        """
+        Initializes a ViT-Base model with a patch size of 16.
+
+        Args:
+            pretrained_weights (str): Path to the pre-trained weights.
+            image_size (int): The size of the input image.
+        """
+        super(VisionTransformerB16, self).__init__(pretrained_weights=pretrained_weights, image_size=image_size)
+
+    def _initialize_model(self, image_size: int) -> nn.Module:
+        """
+        Initializes the specific embedding model
+
+        Args:
+            image_size (int): The size of the input image.
+
+        Returns:
+            nn.Module: The initialized model.
+        """
+        return VisionTransformer(
+            img_size=image_size,
+            patch_size=16,
+            embedding_dim=768,
+            num_heads=12,
+            num_layers=12,
+            mlp_dim=3072
+        )
 
     def _replace_last_layer(self) -> None:
         """

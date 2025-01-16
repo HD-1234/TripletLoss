@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Optional, List
 
 import torch
 import torch.nn as nn
@@ -7,14 +7,18 @@ from torch import Tensor
 from src.models.base_model import BaseEmbeddingModel
 
 
+__all__ = ["ResNeXt50", "ResNeXt101"]
+
+
 class ResNeXt(nn.Module):
-    def __init__(self, groups: int = 32, width_per_group: int = 4) -> None:
+    def __init__(self, groups: int = 32, width_per_group: int = 4, blocks: Optional[List] = None) -> None:
         """
         Initializes the ResNeXt architecture.
 
         Args:
             groups (int): Number of groups in each block.
             width_per_group (int): Width per group.
+            blocks (Optional[List]): The number of blocks in each layer.
         """
         super(ResNeXt, self).__init__()
 
@@ -37,11 +41,15 @@ class ResNeXt(nn.Module):
         # Max-pooling layer with kernel size 3x3, stride 2 and padding 1
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
 
+        # Set the number of blocks in each layer if not provided
+        if not blocks:
+            blocks = [3, 4, 6, 3]
+
         # Define the ResNeXt blocks
-        self.layer1 = self.build_layer(out_channels=64, num_blocks=3, stride=1)
-        self.layer2 = self.build_layer(out_channels=128, num_blocks=4, stride=2)
-        self.layer3 = self.build_layer(out_channels=256, num_blocks=6, stride=2)
-        self.layer4 = self.build_layer(out_channels=512, num_blocks=3, stride=2)
+        self.layer1 = self.build_layer(out_channels=64, num_blocks=blocks[0], stride=1)
+        self.layer2 = self.build_layer(out_channels=128, num_blocks=blocks[1], stride=2)
+        self.layer3 = self.build_layer(out_channels=256, num_blocks=blocks[2], stride=2)
+        self.layer4 = self.build_layer(out_channels=512, num_blocks=blocks[3], stride=2)
 
         # Adaptive average pooling layer
         self.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
@@ -294,14 +302,40 @@ class Bottleneck(nn.Module):
         return out
 
 
-class ResNeXt50(BaseEmbeddingModel):
+class ResNeXt101(BaseEmbeddingModel):
     def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
         """
-        Initializes the document embedding model.
+        Initializes the ResNeXt101 64x4d model.
 
         Args:
             pretrained_weights (str): Path to the pre-trained weights.
-            **kwargs: Additional arguments.
+        """
+        super(ResNeXt101, self).__init__(pretrained_weights=pretrained_weights)
+
+    def _initialize_model(self) -> nn.Module:
+        """
+        Initializes the specific embedding model
+
+        Returns:
+            nn.Module: The initialized model.
+        """
+        return ResNeXt(groups=64, width_per_group=4, blocks=[3, 4, 23, 3])
+
+    def _replace_last_layer(self) -> None:
+        """
+        Replaces the last layer of the model.
+        """
+        num_features = self.embedding_model.fc.in_features
+        self.embedding_model.fc = torch.nn.Linear(num_features, 128)
+
+
+class ResNeXt50(BaseEmbeddingModel):
+    def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
+        """
+        Initializes the ResNeXt50 32x4d model.
+
+        Args:
+            pretrained_weights (str): Path to the pre-trained weights.
         """
         super(ResNeXt50, self).__init__(pretrained_weights=pretrained_weights)
 
@@ -312,7 +346,7 @@ class ResNeXt50(BaseEmbeddingModel):
         Returns:
             nn.Module: The initialized model.
         """
-        return ResNeXt()
+        return ResNeXt(groups=32, width_per_group=4, blocks=[3, 4, 6, 3])
 
     def _replace_last_layer(self) -> None:
         """

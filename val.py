@@ -125,11 +125,11 @@ def calculate_metrics(
 
         # Iterate over each threshold
         for ind, threshold in enumerate(thresholds):
-            # Calculate true positives and false positives
+            # Calculate true positives and false negatives
             tp = torch.sum(positives < threshold)
             fn = positives.size(0) - tp
 
-            # Calculate true negatives and false negatives
+            # Calculate true negatives and false positives
             tn = torch.sum(negatives >= threshold)
             fp = negatives.size(0) - tn
 
@@ -171,8 +171,8 @@ def val():
                         help='The threshold for calculating the metrics. If not provided, the best threshold will be '
                              'calculated.')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility.')
-    parser.add_argument('--model-name', type=str, default='ResNeXt50', choices=['ResNeXt50', 'ViT_B'],
-                        help='Model architecture to use (Options: "ResNeXt50", "ViT_B").')
+    parser.add_argument('--model-name', type=str, default='ResNeXt50', help='Model architecture to use.',
+                        choices=['ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32'])
     args = parser.parse_args()
 
     # Set gpu, mps or cpu
