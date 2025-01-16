@@ -166,8 +166,8 @@ def run_inference():
                         help='Number of workers for the dataloader.')
     parser.add_argument('--seed', type=int, default=42,
                         help='Random seed for reproducibility.')
-    parser.add_argument('--model-name', type=str, default='ResNeXt50', choices=['ResNeXt50', 'ViT_B'],
-                        help='Model architecture to use (Options: "ResNeXt50", "ViT_B")')
+    parser.add_argument('--model-name', type=str, default='ResNeXt50', help='Model architecture to use.',
+                        choices=['ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32'])
     parser.add_argument('--clustering-strategy', type=str, default='avg', choices=['all', 'avg'],
                         help='Choose the clustering strategy (Options: "all", "avg"). "all" means that every distance '
                              'between a file and the files in an existing cluster must be lower than or equal to the '

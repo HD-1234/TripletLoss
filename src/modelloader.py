@@ -1,6 +1,6 @@
 from torch import nn
-from src.models.resnext50 import ResNeXt50
-from src.models.vit_b import VisionTransformerB
+from src.models.resnext import *
+from src.models.vit import *
 
 
 class ModelLoader:
@@ -26,7 +26,11 @@ class ModelLoader:
         """
         model_mapping = {
             'resnext50': ResNeXt50,
-            'vit_b': VisionTransformerB,
+            'resnext101': ResNeXt101,
+            'vit_b_16': VisionTransformerB16,
+            'vit_b_32': VisionTransformerB32,
+            'vit_l_16': VisionTransformerL16,
+            'vit_l_32': VisionTransformerL32
         }
 
         if self.model_name not in model_mapping:

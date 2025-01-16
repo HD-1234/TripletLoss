@@ -71,8 +71,8 @@ def train():
                         help='Directory where logs and other outputs will be saved.')
     parser.add_argument('--deterministic-algorithms', default=False, action=argparse.BooleanOptionalAction,
                         help='Whether deterministic algorithms should be used during training.')
-    parser.add_argument('--model-name', type=str, default='ResNeXt50', choices=['ResNeXt50', 'ViT_B'],
-                        help='Model architecture to use for training (Options: "ResNeXt50", "ViT_B").')
+    parser.add_argument('--model-name', type=str, default='ResNeXt50', help='Model architecture to use.',
+                        choices=['ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32'])
     args = parser.parse_args()
 
     # Set gpu, mps or cpu
