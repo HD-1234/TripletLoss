@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, List
+from typing import Optional, List
 
 import torch
 import torch.nn as nn
@@ -7,7 +7,7 @@ from torch import Tensor
 from src.models.base_model import BaseEmbeddingModel
 
 
-__all__ = ["ResNeXt50", "ResNeXt101"]
+__all__ = ["ResNet50", "ResNet101", "ResNet152", "ResNeXt50", "ResNeXt101"]
 
 
 class ResNeXt(nn.Module):
@@ -22,8 +22,9 @@ class ResNeXt(nn.Module):
         """
         super(ResNeXt, self).__init__()
 
-        # Define the initial number of input channels
+        # Define the initial number of input channels and the expansion
         self.in_channels = 64
+        self.expansion = 4
 
         # Store group and width per group
         self.groups = groups
@@ -79,12 +80,13 @@ class ResNeXt(nn.Module):
                 stride=stride,
                 groups=self.groups,
                 width_per_group=self.width_per_group,
+                expansion=self.expansion,
                 downsampling=True
             )
         )
 
         # Update the number of input channels for the next number of blocks
-        self.in_channels = out_channels * self.width_per_group
+        self.in_channels = out_channels * self.expansion
 
         # Add the blocks without down sampling
         for i in range(1, num_blocks):
@@ -94,6 +96,7 @@ class ResNeXt(nn.Module):
                     out_channels=out_channels,
                     groups=self.groups,
                     width_per_group=self.width_per_group,
+                    expansion=self.expansion
                 )
             )
 
@@ -145,6 +148,7 @@ class Bottleneck(nn.Module):
             stride: int = 1,
             groups: int = 32,
             width_per_group: int = 4,
+            expansion: int = 4,
             downsampling: bool = False
     ) -> None:
         """
@@ -179,10 +183,10 @@ class Bottleneck(nn.Module):
         self.bn2 = self.norm_layer(width)
 
         # Convolutional layer with kernel size 1x1
-        self.conv3 = self.conv1x1(in_channels=width, out_channels=out_channels * width_per_group)
+        self.conv3 = self.conv1x1(in_channels=width, out_channels=out_channels * expansion)
 
         # Batch normalization layer
-        self.bn3 = self.norm_layer(out_channels * width_per_group)
+        self.bn3 = self.norm_layer(out_channels * expansion)
 
         # ReLU activation function
         self.relu = nn.ReLU(inplace=True)
@@ -190,8 +194,8 @@ class Bottleneck(nn.Module):
         # Down sampling layer if required
         if self.downsampling:
             self.downsample = nn.Sequential(
-                self.conv1x1(in_channels, out_channels * width_per_group, stride=stride),  # 1x1 Convolutional layer
-                self.norm_layer(out_channels * width_per_group)  # Batch normalization layer
+                self.conv1x1(in_channels, out_channels * expansion, stride=stride),  # 1x1 Convolutional layer
+                self.norm_layer(out_channels * expansion)  # Batch normalization layer
             )
 
     @staticmethod
@@ -347,6 +351,87 @@ class ResNeXt50(BaseEmbeddingModel):
             nn.Module: The initialized model.
         """
         return ResNeXt(groups=32, width_per_group=4, blocks=[3, 4, 6, 3])
+
+    def _replace_last_layer(self) -> None:
+        """
+        Replaces the last layer of the model.
+        """
+        num_features = self.embedding_model.fc.in_features
+        self.embedding_model.fc = torch.nn.Linear(num_features, 128)
+
+
+class ResNet152(BaseEmbeddingModel):
+    def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
+        """
+        Initializes the ResNet152 model.
+
+        Args:
+            pretrained_weights (str): Path to the pre-trained weights.
+        """
+        super(ResNet152, self).__init__(pretrained_weights=pretrained_weights)
+
+    def _initialize_model(self) -> nn.Module:
+        """
+        Initializes the specific embedding model
+
+        Returns:
+            nn.Module: The initialized model.
+        """
+        return ResNeXt(groups=1, width_per_group=64, blocks=[3, 8, 36, 3])
+
+    def _replace_last_layer(self) -> None:
+        """
+        Replaces the last layer of the model.
+        """
+        num_features = self.embedding_model.fc.in_features
+        self.embedding_model.fc = torch.nn.Linear(num_features, 128)
+
+
+class ResNet101(BaseEmbeddingModel):
+    def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
+        """
+        Initializes the ResNet101 model.
+
+        Args:
+            pretrained_weights (str): Path to the pre-trained weights.
+        """
+        super(ResNet101, self).__init__(pretrained_weights=pretrained_weights)
+
+    def _initialize_model(self) -> nn.Module:
+        """
+        Initializes the specific embedding model
+
+        Returns:
+            nn.Module: The initialized model.
+        """
+        return ResNeXt(groups=1, width_per_group=64, blocks=[3, 4, 23, 3])
+
+    def _replace_last_layer(self) -> None:
+        """
+        Replaces the last layer of the model.
+        """
+        num_features = self.embedding_model.fc.in_features
+        self.embedding_model.fc = torch.nn.Linear(num_features, 128)
+
+
+class ResNet50(BaseEmbeddingModel):
+    def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
+        """
+        Initializes the ResNet50 model.
+
+        Args:
+            pretrained_weights (str): Path to the pre-trained weights.
+        """
+        super(ResNet50, self).__init__(pretrained_weights=pretrained_weights)
+
+    def _initialize_model(self) -> nn.Module:
+        """
+        Initializes the specific embedding model
+
+        Returns:
+            nn.Module: The initialized model.
+        """
+        return ResNeXt(groups=1, width_per_group=64, blocks=[3, 4, 6, 3])
 
     def _replace_last_layer(self) -> None:
         """

@@ -172,7 +172,8 @@ def val():
                              'calculated.')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility.')
     parser.add_argument('--model-name', type=str, default='ResNeXt50', help='Model architecture to use.',
-                        choices=['ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32'])
+                        choices=['ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16',
+                                 'ViT_B_32', 'ViT_L_16', 'ViT_L_32'])
     args = parser.parse_args()
 
     # Set gpu, mps or cpu

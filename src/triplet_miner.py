@@ -20,41 +20,6 @@ class TripletMiner:
         self.margin = margin
 
     @staticmethod
-    def _filter_duplicates(
-            embeddings: torch.Tensor,
-            labels: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Removes duplicate embeddings and the corresponding labels.
-
-        Args:
-            embeddings (torch.Tensor): Tensor of embeddings.
-            labels (torch.Tensor): Tensor of labels.
-
-        Returns:
-            Tuple: Unique embeddings, their corresponding labels and the unique indices.
-        """
-        # Find unique embeddings and return the corresponding indices and counts
-        _, indices, counts = torch.unique(embeddings, dim=0, sorted=True, return_inverse=True, return_counts=True)
-
-        # Sort the indices to get the original order
-        sorted_indices = torch.argsort(indices, stable=True)
-
-        # Calculate the cumulative sum of the counts
-        cum_sum = counts.cumsum(0)
-
-        # Add 0 as the first element and remove the last element
-        cum_sum = torch.cat((torch.tensor([0], device=embeddings.device), cum_sum[:-1]))
-
-        # Get the unique indices by using the cumulative counts
-        unique_indices = sorted_indices[cum_sum]
-
-        # Sort the unique indices and apply them to the embeddings and labels
-        unique_indices, _ = torch.sort(unique_indices, stable=True)
-
-        return embeddings[unique_indices], labels[unique_indices], unique_indices
-
-    @staticmethod
     def _calculate_similarity_scores(embeddings: torch.Tensor) -> torch.Tensor:
         """
         Calculates the similarity scores between all embeddings.
@@ -100,6 +65,71 @@ class TripletMiner:
         negative_mask = ~label_mask
 
         return positive_mask, negative_mask
+
+    def _filter_duplicates(
+            self,
+            embeddings: torch.Tensor,
+            labels: torch.Tensor,
+            eps: float = 1e-6
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Removes duplicate embeddings and the corresponding labels.
+
+        Args:
+            embeddings (torch.Tensor): Tensor of embeddings.
+            labels (torch.Tensor): Tensor of labels.
+            eps (float): Tolerance for considering two embeddings as duplicates (mps only).
+
+        Returns:
+            Tuple: Unique embeddings, their corresponding labels and the unique indices.
+        """
+        # Get the device
+        device = embeddings.device
+
+        # The operator 'aten::unique_dim' is currently not implemented for MPS devices
+        if device.type == 'mps':
+            # Calculate the similarity scores
+            scores = self._calculate_similarity_scores(embeddings=embeddings)
+
+            # Create a mask for elements with the same label
+            label_mask = labels.unsqueeze(1) == labels.unsqueeze(0)
+
+            # Apply the mask
+            scores[~label_mask] = -1
+
+            # Create a mask in which all elements to the right of the diagonal are True
+            mask = torch.triu(torch.ones_like(scores)).bool()
+
+            # Apply the mask
+            scores[mask] = -1
+
+            # Create a boolean mask where elements in each row are True if they have at least one element with a score
+            # equal to 1
+            mask = (scores >= 1.0 - eps).any(dim=1)
+
+            # Get the indices of the unique rows
+            unique_indices = torch.arange(0, embeddings.shape[0], device=device)[~mask]
+
+        else:
+            # Find unique embeddings and return the corresponding indices and counts
+            _, indices, counts = torch.unique(embeddings, dim=0, sorted=True, return_inverse=True, return_counts=True)
+
+            # Sort the indices to get the original order
+            sorted_indices = torch.argsort(indices, stable=True)
+
+            # Calculate the cumulative sum of the counts
+            cum_sum = counts.cumsum(0)
+
+            # Add 0 as the first element and remove the last element
+            cum_sum = torch.cat((torch.tensor([0], device=embeddings.device), cum_sum[:-1]))
+
+            # Get the unique indices by using the cumulative counts
+            unique_indices = sorted_indices[cum_sum]
+
+            # Sort the unique indices and apply them to the embeddings and labels
+            unique_indices, _ = torch.sort(unique_indices, stable=True)
+
+        return embeddings[unique_indices], labels[unique_indices], unique_indices
 
     def _mine_positives(
             self,

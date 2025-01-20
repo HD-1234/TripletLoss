@@ -95,7 +95,7 @@ def calculate_lr_factor(
 
     # If the current epoch is the last epoch, return the factor that will adjust the learning rate to the target
     # learning rate.
-    if epoch == max_epochs - 1:
+    if epoch >= max_epochs - 1:
         return lr1 / lr0
 
     # Exponential learning rate schedule
