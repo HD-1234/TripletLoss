@@ -1,5 +1,5 @@
 from torch import nn
-from src.models.resnext import *
+from src.models.resnet import *
 from src.models.vit import *
 
 
@@ -25,6 +25,9 @@ class ModelLoader:
             nn.Module: The actual model.
         """
         model_mapping = {
+            'resnet50': ResNet50,
+            'resnet101': ResNet101,
+            'resnet152': ResNet152,
             'resnext50': ResNeXt50,
             'resnext101': ResNeXt101,
             'vit_b_16': VisionTransformerB16,
