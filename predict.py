@@ -150,30 +150,74 @@ def cluster_files(embeddings: dict, threshold: float, strategy: str = "avg") -> 
 
 def run_inference():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--input-path', type=Path, required=True,
-                        help='Path to the input directory containing files to be sorted.')
-    parser.add_argument('-o', '--output-path', type=Path, required=True,
-                        help='Path to the output directory where sorted files will be stored.')
-    parser.add_argument('-m', '--model', type=Path, required=True,
-                        help='Path to the model.')
-    parser.add_argument('-t', '--threshold', type=float, required=True,
-                        help='Threshold for clustering files based on their embeddings.')
-    parser.add_argument('-s', '--image-size', type=int, default=224,
-                        help='Size of the input images.')
-    parser.add_argument('-b', '--batch-size', type=int, default=16,
-                        help='Batch size for evaluation.')
-    parser.add_argument('-n', '--num-workers', type=int, default=4,
-                        help='Number of workers for the dataloader.')
-    parser.add_argument('--seed', type=int, default=42,
-                        help='Random seed for reproducibility.')
-    parser.add_argument('--model-name', type=str, default='ResNeXt50', help='Model architecture to use.',
-                        choices=['ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16',
-                                 'ViT_B_32', 'ViT_L_16', 'ViT_L_32'])
-    parser.add_argument('--clustering-strategy', type=str, default='avg', choices=['all', 'avg'],
-                        help='Choose the clustering strategy (Options: "all", "avg"). "all" means that every distance '
-                             'between a file and the files in an existing cluster must be lower than or equal to the '
-                             'threshold. "avg" means that the average distance between a file and the files in an '
-                             'existing cluster must be lower than or equal to the threshold.')
+    parser.add_argument(
+        '-i', '--input-path', 
+        type=Path, 
+        required=True, 
+        help='Path to the input directory containing files to be sorted.'
+    )
+    parser.add_argument(
+        '-o', '--output-path', 
+        type=Path, 
+        required=True, 
+        help='Path to the output directory where sorted files will be stored.'
+    )
+    parser.add_argument(
+        '-m', '--model', 
+        type=Path, 
+        required=True, 
+        help='Path to the model.'
+    )
+    parser.add_argument(
+        '-t', '--threshold', 
+        type=float, 
+        required=True, 
+        help='Threshold for clustering files based on their embeddings.'
+    )
+    parser.add_argument(
+        '-s', '--image-size', 
+        type=int, 
+        default=224, 
+        help='Size of the input images.'
+    )
+    parser.add_argument(
+        '-b', '--batch-size', 
+        type=int, 
+        default=16, 
+        help='Batch size for evaluation.'
+    )
+    parser.add_argument(
+        '-n', '--num-workers', 
+        type=int, 
+        default=4, 
+        help='Number of workers for the dataloader.'
+    )
+    parser.add_argument(
+        '--seed', 
+        type=int, 
+        default=42, 
+        help='Random seed for reproducibility.'
+    )
+    parser.add_argument(
+        '--model-name', 
+        type=str, 
+        default='ResNeXt50', 
+        help='Model architecture to use.', 
+        choices=[
+            'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 
+            'ViT_L_32', 'ViTAR_B_16'
+        ]
+    )
+    parser.add_argument(
+        '--clustering-strategy', 
+        type=str, 
+        default='avg', 
+        choices=['all', 'avg'], 
+        help='Choose the clustering strategy (Options: "all", "avg"). "all" means that every distance  between a file '
+             'and the files in an existing cluster must be lower than or equal to the threshold. "avg" means that the '
+             'average distance between a file and the files in an existing cluster must be lower than or equal to the '
+             'threshold.'
+    )
     args = parser.parse_args()
 
     # Set gpu, mps or cpu
@@ -194,7 +238,7 @@ def run_inference():
     generator = set_seed(seed=args.seed)
 
     # Build the test data loader
-    test_set = InferenceDataset(path=args.input_path, size=args.image_size)
+    test_set = InferenceDataset(path=args.input_path, img_size=args.image_size)
     test_loader = torch.utils.data.DataLoader(
         test_set,
         batch_size=args.batch_size,

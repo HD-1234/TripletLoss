@@ -429,15 +429,14 @@ class VisionTransformer(nn.Module):
 
 
 class VisionTransformerL32(BaseEmbeddingModel):
-    def __init__(self, pretrained_weights: str = None, image_size: int = 224) -> None:
+    def __init__(self, image_size: int = 224) -> None:
         """
         Initializes a ViT-Large model with a patch size of 32.
 
         Args:
-            pretrained_weights (str): Path to the pre-trained weights.
             image_size (int): The size of the input image.
         """
-        super(VisionTransformerL32, self).__init__(pretrained_weights=pretrained_weights, image_size=image_size)
+        super(VisionTransformerL32, self).__init__(image_size=image_size)
 
     def _initialize_model(self, image_size: int) -> nn.Module:
         """
@@ -467,15 +466,14 @@ class VisionTransformerL32(BaseEmbeddingModel):
 
 
 class VisionTransformerL16(BaseEmbeddingModel):
-    def __init__(self, pretrained_weights: str = None, image_size: int = 224) -> None:
+    def __init__(self, image_size: int = 224) -> None:
         """
         Initializes a ViT-Large model with a patch size of 16.
 
         Args:
-            pretrained_weights (str): Path to the pre-trained weights.
             image_size (int): The size of the input image.
         """
-        super(VisionTransformerL16, self).__init__(pretrained_weights=pretrained_weights, image_size=image_size)
+        super(VisionTransformerL16, self).__init__(image_size=image_size)
 
     def _initialize_model(self, image_size: int) -> nn.Module:
         """
@@ -505,15 +503,14 @@ class VisionTransformerL16(BaseEmbeddingModel):
 
 
 class VisionTransformerB32(BaseEmbeddingModel):
-    def __init__(self, pretrained_weights: str = None, image_size: int = 224) -> None:
+    def __init__(self, image_size: int = 224) -> None:
         """
         Initializes a ViT-Base model with a patch size of 32.
 
         Args:
-            pretrained_weights (str): Path to the pre-trained weights.
             image_size (int): The size of the input image.
         """
-        super(VisionTransformerB32, self).__init__(pretrained_weights=pretrained_weights, image_size=image_size)
+        super(VisionTransformerB32, self).__init__(image_size=image_size)
 
     def _initialize_model(self, image_size: int) -> nn.Module:
         """
@@ -543,15 +540,14 @@ class VisionTransformerB32(BaseEmbeddingModel):
 
 
 class VisionTransformerB16(BaseEmbeddingModel):
-    def __init__(self, pretrained_weights: str = None, image_size: int = 224) -> None:
+    def __init__(self, image_size: int = 224) -> None:
         """
         Initializes a ViT-Base model with a patch size of 16.
 
         Args:
-            pretrained_weights (str): Path to the pre-trained weights.
             image_size (int): The size of the input image.
         """
-        super(VisionTransformerB16, self).__init__(pretrained_weights=pretrained_weights, image_size=image_size)
+        super(VisionTransformerB16, self).__init__(image_size=image_size)
 
     def _initialize_model(self, image_size: int) -> nn.Module:
         """

@@ -102,7 +102,7 @@ class ResNeXt(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, **kwargs) -> Tensor:
         """
         Forward pass through the ResNeXt model.
 
@@ -307,14 +307,11 @@ class Bottleneck(nn.Module):
 
 
 class ResNeXt101(BaseEmbeddingModel):
-    def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:
         """
         Initializes the ResNeXt101 64x4d model.
-
-        Args:
-            pretrained_weights (str): Path to the pre-trained weights.
         """
-        super(ResNeXt101, self).__init__(pretrained_weights=pretrained_weights)
+        super(ResNeXt101, self).__init__()
 
     def _initialize_model(self) -> nn.Module:
         """
@@ -334,14 +331,11 @@ class ResNeXt101(BaseEmbeddingModel):
 
 
 class ResNeXt50(BaseEmbeddingModel):
-    def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:
         """
         Initializes the ResNeXt50 32x4d model.
-
-        Args:
-            pretrained_weights (str): Path to the pre-trained weights.
         """
-        super(ResNeXt50, self).__init__(pretrained_weights=pretrained_weights)
+        super(ResNeXt50, self).__init__()
 
     def _initialize_model(self) -> nn.Module:
         """
@@ -361,14 +355,11 @@ class ResNeXt50(BaseEmbeddingModel):
 
 
 class ResNet152(BaseEmbeddingModel):
-    def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:
         """
         Initializes the ResNet152 model.
-
-        Args:
-            pretrained_weights (str): Path to the pre-trained weights.
         """
-        super(ResNet152, self).__init__(pretrained_weights=pretrained_weights)
+        super(ResNet152, self).__init__()
 
     def _initialize_model(self) -> nn.Module:
         """
@@ -388,14 +379,11 @@ class ResNet152(BaseEmbeddingModel):
 
 
 class ResNet101(BaseEmbeddingModel):
-    def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:
         """
         Initializes the ResNet101 model.
-
-        Args:
-            pretrained_weights (str): Path to the pre-trained weights.
         """
-        super(ResNet101, self).__init__(pretrained_weights=pretrained_weights)
+        super(ResNet101, self).__init__()
 
     def _initialize_model(self) -> nn.Module:
         """
@@ -415,14 +403,11 @@ class ResNet101(BaseEmbeddingModel):
 
 
 class ResNet50(BaseEmbeddingModel):
-    def __init__(self, pretrained_weights: str = None, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:
         """
         Initializes the ResNet50 model.
-
-        Args:
-            pretrained_weights (str): Path to the pre-trained weights.
         """
-        super(ResNet50, self).__init__(pretrained_weights=pretrained_weights)
+        super(ResNet50, self).__init__()
 
     def _initialize_model(self) -> nn.Module:
         """

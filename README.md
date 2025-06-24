@@ -9,7 +9,7 @@ This project is a deep learning implementation for training a triplet loss-based
 - **TensorBoard Logging**: Training and validation metrics are logged using TensorBoard for visualization.
 - **Hyperparameter Saving**: Hyperparameters are saved in a YAML file for reproducibility.
 - **Evaluation**: Evaluation script to test the performance of the trained model.
-- **Model Support**: The framework supports multiple models.
+- **Model Support**: The framework supports multiple models (ResNet, ResNeXt, ViT and ViTAR).
 
 ## Requirements
 - Python 3.9.0+
@@ -58,9 +58,10 @@ python predict.py -i path/to/input/directory -o path/to/output/directory -m path
 **Main Script**: Handles the training of the image embedding model.
 
 **Arguments**:
-- `-e`, `--epochs`: Number of epochs to train for (default: 50).
+- `-e`, `--epochs`: Number of epochs to train for (default: 100).
 - `-t`, `--train-set`: Path to the training dataset directory.
 - `-v`, `--val-set`: Path to the validation dataset directory.
+- `-c`, `--checkpoint-folder`: Path to the training folder containing the latest state to resume from.
 - `-b`, `--batch-size`: Batch size (default: 16).
 - `-s`, `--image-size`: Size of the input images (default: 224).
 - `-n`, `--num-workers`: Number of workers for the dataloader (default: 2).
@@ -79,7 +80,7 @@ python predict.py -i path/to/input/directory -o path/to/output/directory -m path
 - `--pretrained-weights`: Path to the pre-trained weights (default: None).
 - `--log-folder`: Directory where logs and other outputs will be saved (default: './runs').
 - `--deterministic-algorithms`: Whether deterministic algorithms should be used during training (default: False).
-- `--model-name`: Model architecture to train. Choose from 'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16' or 'ViT_L_32' (default: 'ResNeXt50').
+- `--model-name`: Model architecture to train. Choose from 'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32' or 'ViTAR_B_16' (default: 'ResNeXt50').
 
 ### `val.py`
 **Evaluation Script**: Handles the evaluation of the trained model.
