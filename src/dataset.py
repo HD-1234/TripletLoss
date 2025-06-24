@@ -253,7 +253,7 @@ class TripletDataset(BaseDataset):
 class InferenceDataset(BaseDataset):
     def __init__(self, path: str, img_size: int) -> None:
         """
-        Initializes the dataloader.
+        Initializes the inference dataset.
 
         Args:
             path (str): The directory containing images.
