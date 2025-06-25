@@ -9,6 +9,9 @@ from src.models.base_model import BaseEmbeddingModel
 import torch
 
 
+__all__ = ["VisionTransformerAnyResolutionB16", "VisionTransformerAnyResolutionL16"]
+
+
 class FeedForwardNetwork(nn.Module):
     def __init__(self, d_model: int, ff_dim: int, dropout: float) -> None:
         """
@@ -511,8 +514,43 @@ class VisionTransformerAnyResolutionB16(BaseEmbeddingModel):
             d_model=768,
             num_heads=12,
             num_layers=12,
-            ff_dim=2048,
             mlp_dim=3072
+        )
+
+    def _replace_last_layer(self) -> None:
+        """
+        Replaces the last layer of the model.
+        """
+        num_features = self.embedding_model.heads.head.in_features
+        self.embedding_model.heads.head = nn.Linear(num_features, 128)
+
+
+class VisionTransformerAnyResolutionL16(BaseEmbeddingModel):
+    def __init__(self, image_size: int = 224) -> None:
+        """
+        Initializes a ViTAR-Large model with a patch size of 16.
+
+        Args:
+            image_size (int): The size of the input image.
+        """
+        super(VisionTransformerAnyResolutionL16, self).__init__(image_size=image_size)
+
+    def _initialize_model(self, image_size: int) -> nn.Module:
+        """
+        Initializes the specific embedding model
+
+        Args:
+            image_size (int): The size of the input image.
+
+        Returns:
+            nn.Module: The initialized model.
+        """
+        return VisionTransformerAnyResolution(
+            patch_size=16,
+            d_model=1024,
+            num_heads=16,
+            num_layers=24,
+            mlp_dim=4096
         )
 
     def _replace_last_layer(self) -> None:

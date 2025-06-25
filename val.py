@@ -211,7 +211,7 @@ def val():
         help='Model architecture to use.', 
         choices=[
             'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 
-            'ViT_L_32', 'ViTAR_B_16'
+            'ViT_L_32', 'ViTAR_B_16', 'ViTAR_L_16'
         ]
     )
     args = parser.parse_args()

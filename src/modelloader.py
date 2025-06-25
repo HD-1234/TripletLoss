@@ -1,7 +1,7 @@
 from torch import nn
 from src.models.resnet import *
 from src.models.vit import *
-from src.models.vitar import VisionTransformerAnyResolutionB16
+from src.models.vitar import *
 
 
 class ModelLoader:
@@ -33,7 +33,8 @@ class ModelLoader:
             'vit_b_32': VisionTransformerB32,
             'vit_l_16': VisionTransformerL16,
             'vit_l_32': VisionTransformerL32,
-            'vitar_b_16': VisionTransformerAnyResolutionB16
+            'vitar_b_16': VisionTransformerAnyResolutionB16,
+            'vitar_l_16': VisionTransformerAnyResolutionL16
         }
 
         if self.model_name not in model_mapping:
