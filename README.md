@@ -66,6 +66,8 @@ python predict.py -i path/to/input/directory -o path/to/output/directory -m path
 - `-s`, `--image-size`: Size of the input images (default: 224).
 - `-n`, `--num-workers`: Number of workers for the dataloader (default: 2).
 - `-m`, `--margin`: Margin value for the triplet loss function (default: 1.5).
+- `--weight-decay`: The weight decay coefficient (default: 0.0001).
+- `--max-norm`: The maximum norm of the gradients. Only effective if the value is greater than zero (default: 0).
 - `-l`, `--learning-rate`: Initial learning rate for the optimizer (default: 0.0001).
 - `--target-lr`: Learning rate at the end of the training. If not specified, the learning rate is fixed (default: None).
 - `--lr-steps`: The epoch in which the learning rate should be adjusted. The new learning rate is calculated by the difference between the initial learning rate and the target learning rate divided by the number of steps (default: None).
@@ -77,7 +79,7 @@ python predict.py -i path/to/input/directory -o path/to/output/directory -m path
 - `--seed`: Random seed for reproducibility (default: 42).
 - `--augment`: Whether to apply data augmentation during the training (default: False).
 - `--early-stopping`: Number of epochs without improvement before stopping the training. Set to -1 to disable (default: -1).
-- `--pretrained-weights`: Path to the pre-trained weights (default: None).
+- `--pretrained-weights`: Path to the pretrained weights (default: None).
 - `--log-folder`: Directory where logs and other outputs will be saved (default: './runs').
 - `--deterministic-algorithms`: Whether deterministic algorithms should be used during training (default: False).
 - `--model-name`: Model architecture to train. Choose from 'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32', 'ViTAR_B_16' or 'ViTAR_L_16' (default: 'ResNeXt50').
