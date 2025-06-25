@@ -80,7 +80,7 @@ python predict.py -i path/to/input/directory -o path/to/output/directory -m path
 - `--pretrained-weights`: Path to the pre-trained weights (default: None).
 - `--log-folder`: Directory where logs and other outputs will be saved (default: './runs').
 - `--deterministic-algorithms`: Whether deterministic algorithms should be used during training (default: False).
-- `--model-name`: Model architecture to train. Choose from 'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32' or 'ViTAR_B_16' (default: 'ResNeXt50').
+- `--model-name`: Model architecture to train. Choose from 'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32', 'ViTAR_B_16' or 'ViTAR_L_16' (default: 'ResNeXt50').
 
 ### `val.py`
 **Evaluation Script**: Handles the evaluation of the trained model.
@@ -93,7 +93,7 @@ python predict.py -i path/to/input/directory -o path/to/output/directory -m path
 - `-n`, `--num-workers`: Number of workers for data loading (default: 4).
 - `-t`, `--threshold`: The threshold for calculating the metrics. If not provided, the best threshold will be calculated (default: None).
 - `--seed`: Seed for reproducibility (default: 42).
-- `--model-name`: Model architecture to use. Choose from 'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32' or 'ViTAR_B_16' (default: 'ResNeXt50').
+- `--model-name`: Model architecture to use. Choose from 'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32', 'ViTAR_B_16' or 'ViTAR_L_16' (default: 'ResNeXt50').
 
 ### `predict.py`
 **Inference Script**: Handles the prediction and clustering of files using the trained model.
@@ -107,7 +107,7 @@ python predict.py -i path/to/input/directory -o path/to/output/directory -m path
 - `-b`, `--batch-size`: Batch size (default: 16).
 - `-n`, `--num-workers`: Number of workers for data loading (default: 4).
 - `--seed`: Seed for reproducibility (default: 42).
-- `--model-name`: Model architecture to use. Choose from 'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32' or 'ViTAR_B_16' (default: 'ResNeXt50').
+- `--model-name`: Model architecture to use. Choose from 'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 'ViT_L_32', 'ViTAR_B_16' or 'ViTAR_L_16' (default: 'ResNeXt50').
 - `--clustering-strategy`: Choose the clustering strategy from "all" or "avg". "all" means that every distance between a file and the files in an existing cluster must be lower than or equal to the threshold. "avg" means that the average distance between a file and the files in an existing cluster must be lower than or equal to the threshold (default: 'avg').
 
 ### Example Usage
