@@ -6,41 +6,62 @@ import pypdfium2 as pdfium
 import torch
 
 from PIL import Image
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Union
 
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 
 
 class BaseDataset(Dataset):
-    def __init__(self, path: str, size: int, augmentation: bool = False) -> None:
+    def __init__(self, path: str, img_size: int, max_scale_factor: int = 1, augmentation: bool = False) -> None:
         """
         Initializes the base dataset.
 
         Args:
             path (str): The directory containing images.
-            size (int): The image size.
+            img_size (int): The image size.
+            max_scale_factor (int): The maximum scale factor for calculating the final image resolution.
             augmentation (bool): Whether to apply data augmentation or not.
         """
         super().__init__()
-
-        self.size = size
+        self.size = img_size * max_scale_factor
 
         if augmentation:
             self.transform = transforms.Compose([
-                transforms.RandomRotation(degrees=(-2, 2)),
-                transforms.ColorJitter(brightness=(0.85, 1.0), contrast=(0.85, 1.0), saturation=(0.85, 1.0),
-                                       hue=(-0.05, 0.05)),
-                transforms.GaussianBlur(kernel_size=3, sigma=(1.5, 2.0)),
-                transforms.RandomAdjustSharpness(sharpness_factor=2, p=0.5),
-                transforms.RandomPerspective(distortion_scale=0.1, p=1.0),
+                transforms.RandomRotation(
+                    degrees=(-2, 2)
+                ),
+                transforms.ColorJitter(
+                    brightness=(0.85, 1.0),
+                    contrast=(0.85, 1.0),
+                    saturation=(0.85, 1.0),
+                    hue=(-0.05, 0.05)
+                ),
+                transforms.GaussianBlur(
+                    kernel_size=3,
+                    sigma=(1.5, 2.0)
+                ),
+                transforms.RandomAdjustSharpness(
+                    sharpness_factor=2,
+                    p=0.5
+                ),
+                transforms.RandomPerspective(
+                    distortion_scale=0.1,
+                    p=1.0
+                ),
                 transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                ),
             ])
         else:
             self.transform = transforms.Compose([
                 transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
             ])
 
         if not os.path.exists(path):
@@ -128,16 +149,19 @@ class BaseDataset(Dataset):
 
 
 class TripletDataset(BaseDataset):
-    def __init__(self, path: str, size: int, augmentation: bool = False) -> None:
+    def __init__(self, path: str, img_size: int, max_scale_factor: int = 1, augmentation: bool = False) -> None:
         """
         Initializes the triplet dataset.
 
         Args:
             path (str): The directory containing images.
-            size (int): The image size.
+            img_size (int): The image size.
+            max_scale_factor (int): The maximum scale factor for calculating the final image resolution.
             augmentation (bool): Whether to apply data augmentation or not.
         """
-        super().__init__(path=path, size=size, augmentation=augmentation)
+        super().__init__(path=path, img_size=img_size, max_scale_factor=max_scale_factor, augmentation=augmentation)
+        self.img_size = img_size
+        self.max_scale_factor = max_scale_factor
 
         self.templates = list(self.paths.keys())
         self.index_to_template = {i: p for i, p in enumerate([p for template in self.paths.values() for p in template])}
@@ -182,7 +206,7 @@ class TripletDataset(BaseDataset):
     def __len__(self) -> int:
         return len(self.index_to_template)
 
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, index: int) -> Dict[str, Union[str, torch.Tensor]]:
         """
         Gets a triplet of images.
 
@@ -190,8 +214,8 @@ class TripletDataset(BaseDataset):
             index (int): The index of the template to use for anchor and positive samples.
 
         Returns:
-            Tuple: A Tuple containing a tensor of the anchor, positive and negative images and another tensor for the
-            corresponding labels.
+            Dict: A dict containing the tensor of the anchor, positive and negative images, the corresponding paths
+            and another tensor for the corresponding labels.
         """
         # Get the paths and labels for the anchor, positive, and negative images
         paths, labels = self.get_paths(index)
@@ -217,19 +241,25 @@ class TripletDataset(BaseDataset):
         # Convert labels to tensor
         labels_tensor = torch.tensor(labels, dtype=torch.long)
 
-        return torch.stack((anchor, positive, negative)), labels_tensor
+        return dict(
+            img_size=self.img_size,
+            max_scale_factor=self.max_scale_factor,
+            paths=paths,
+            data=torch.stack((anchor, positive, negative)),
+            labels=labels_tensor
+        )
 
 
 class InferenceDataset(BaseDataset):
-    def __init__(self, path: str, size: int) -> None:
+    def __init__(self, path: str, img_size: int) -> None:
         """
         Initializes the inference dataset.
 
         Args:
             path (str): The directory containing images.
-            size (int): The image size.
+            img_size (int): The image size.
         """
-        super().__init__(path=path, size=size)
+        super().__init__(path=path, img_size=img_size)
 
         self.paths = [p for lst in self._get_files(path).values() for p in lst]
 

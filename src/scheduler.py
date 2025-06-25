@@ -28,12 +28,13 @@ class Scheduler:
         self.training_loader = training_loader
         self.validation_loader = validation_loader
 
-    def train_one_epoch(self, lr_scheduler: LRScheduler) -> Tensor:
+    def train_one_epoch(self, lr_scheduler: LRScheduler, max_norm: float = 0.1) -> Tensor:
         """
         Trains the model for one epoch.
 
         Args:
             lr_scheduler (LRScheduler): The learn rate scheduler.
+            max_norm (float): The maximum norm of the gradients.
 
         Returns:
             tensor: The average loss.
@@ -44,7 +45,8 @@ class Scheduler:
         train_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         for batch in self.training_loader:
             # Unpack the batch
-            data, labels = batch
+            data = batch["data"]
+            labels = batch["labels"]
 
             # Get triplets from batch
             anchor, positive, negative = data[:, 0], data[:, 1], data[:, 2]
@@ -58,11 +60,15 @@ class Scheduler:
             self.optimizer.zero_grad()
 
             # Make predictions for this batch
-            anchor, positive, negative = self.model(anchor, positive, negative)
+            anchor, positive, negative = self.model(anchor, positive, negative, fuzzy_positional_encoding=True)
 
             # Compute the loss and its gradients
             loss = self.loss_fn(anchor, positive, negative, anchor_label, positive_label, negative_label)
             loss.backward()
+
+            # Clip the gradient norm
+            if max_norm > 0:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm)
 
             # Update the model parameters by applying the computed gradients
             self.optimizer.step()
@@ -89,7 +95,8 @@ class Scheduler:
         with torch.no_grad():
             for batch in self.validation_loader:
                 # Unpack the batch
-                data, labels = batch
+                data = batch["data"]
+                labels = batch["labels"]
 
                 # Get triplets from batch
                 anchor, positive, negative = data[:, 0], data[:, 1], data[:, 2]

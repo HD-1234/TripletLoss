@@ -1,13 +1,16 @@
 import os
 import random
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Any
 
 import yaml
 from datetime import datetime
 
 import numpy as np
 import torch
+from torch import nn, optim
+from torch.optim.lr_scheduler import LRScheduler
+from torchvision.transforms import transforms
 
 
 class BestResult:
@@ -60,6 +63,46 @@ def set_worker_seed(worker_id):
     worker_seed = torch.initial_seed() % 2 ** 32
     np.random.seed(worker_seed)
     random.seed(worker_seed)
+
+
+def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Custom collate function for batch processing with random down-sampling. Reduces all images in the batch to a random
+    scale (1 to 5 times smaller than the original size) and then stacks them. The labels are also stacked. The stacked
+    tensors and the paths build the output.
+
+    Args:
+        batch (List[Dict[str, Any]]): List of dictionaries with image tensors, label tensors, image size, paths and the
+            max scale factor
+
+    Returns:
+        Dict: Image paths, image tensors and labels for each triplet within the batch.
+    """
+    # Get min image size and the max scale factor
+    min_img_size = batch[0]["img_size"]
+    max_scale_factor = batch[0]["max_scale_factor"]
+
+    # Calculate the random downscale factor
+    scale_factor = 1
+    if max_scale_factor != 1 and random.randint(0, 1) == 1:
+        scale_factor = random.randint(2, max_scale_factor)
+
+    # Create the transformation pipeline
+    image_size = min_img_size * scale_factor
+    transformation = transforms.Compose(
+        [
+            transforms.Resize(size=(image_size, image_size))
+        ]
+    )
+
+    # Get the paths within the batch
+    paths = [b["paths"] for b in batch]
+
+    # Stack the label and image tensors within the batch
+    image_tensors = torch.stack([transformation(b["data"]) for b in batch])
+    label_tensors = torch.stack([b["labels"] for b in batch])
+
+    return dict(paths=paths, data=image_tensors, labels=label_tensors)
 
 
 def calculate_lr_factor(
@@ -174,3 +217,31 @@ def write_hyperparameters_to_yaml(path: str, hyperparameters: Dict) -> None:
     yaml_file_path = os.path.join(path, 'hyperparameters.yaml')
     with open(yaml_file_path, 'w') as file:
         yaml.dump(hyperparameters, file, default_flow_style=False, sort_keys=False)
+
+
+def save_training_checkpoint(
+    path: str,
+    epoch: int,
+    model: nn.Module,
+    optimizer: optim.Optimizer,
+    lr_scheduler: LRScheduler,
+):
+    """
+    Saves the current checkpoint to allow resuming rhe training.
+
+    Args:
+        path (str): The path to save the checkpoint.
+        epoch (int): The current epoch.
+        model (nn.Module): The model.
+        optimizer (Optimizer): The optimizer.
+        lr_scheduler (LRScheduler): The learning rate scheduler.
+    """
+    training_state = {
+        "current_epoch": epoch,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "lr_scheduler_state_dict": lr_scheduler.state_dict(),
+    }
+
+    # Save latest model
+    torch.save(training_state, os.path.join(path, f"latest.pth"))

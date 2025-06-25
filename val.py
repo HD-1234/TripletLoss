@@ -5,7 +5,7 @@ from typing import Tuple, Optional
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torch.utils.data.dataloader import DataLoader
+from torch.utils.data import DataLoader
 
 from src.dataset import TripletDataset
 from src.modelloader import ModelLoader
@@ -28,14 +28,14 @@ def calculate_distances(model: nn.Module, data_loader: DataLoader, device: str) 
     model.eval()
 
     # Initialize tensors to accumulate results
-    num_samples = len(data_loader.dataset)
+    num_samples = len(getattr(data_loader, "dataset"))
     positives = torch.zeros(num_samples, device=device)
     negatives = torch.zeros(num_samples, device=device)
 
     with torch.no_grad():
         for ind, batch in enumerate(data_loader):
             # Unpack the batch
-            data, _ = batch
+            data = batch["data"]
 
             # Get triplets from batch
             anchor, positive, negative = data[:, 0], data[:, 1], data[:, 2]
@@ -147,7 +147,7 @@ def calculate_metrics(
 
         # Find the best index
         scores = torch.zeros(results[:, 0].shape)
-        scores += ((results[:, 3] * 0.9) + (results[:, 1] * 0.1))
+        scores += ((results[:, 3] * 0.75) + (results[:, 1] * 0.25))
         index = torch.argmax(scores[:])
 
         # Get the best threshold and the corresponding metrics
@@ -162,18 +162,58 @@ def calculate_metrics(
 
 def val():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path', type=Path, required=True, help='Path to the test dataset directory.')
-    parser.add_argument('-m', '--model', type=Path, required=True, help='Path to the model.')
-    parser.add_argument('-s', '--image-size', type=int, default=224, help='Size of the input images.')
-    parser.add_argument('-b', '--batch-size', type=int, default=16, help='Batch size for evaluation.')
-    parser.add_argument('-n', '--num-workers', type=int, default=4, help='Number of workers for the dataloader.')
-    parser.add_argument('-t', '--threshold', type=float, default=None,
-                        help='The threshold for calculating the metrics. If not provided, the best threshold will be '
-                             'calculated.')
-    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility.')
-    parser.add_argument('--model-name', type=str, default='ResNeXt50', help='Model architecture to use.',
-                        choices=['ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16',
-                                 'ViT_B_32', 'ViT_L_16', 'ViT_L_32'])
+    parser.add_argument(
+        '-p', '--path', 
+        type=Path, 
+        required=True,
+        help='Path to the test dataset directory.'
+    )
+    parser.add_argument(
+        '-m', '--model', 
+        type=Path, 
+        required=True,
+        help='Path to the model.'
+    )
+    parser.add_argument(
+        '-s', '--image-size', 
+        type=int, 
+        default=224, 
+        help='Size of the input images.'
+    )
+    parser.add_argument(
+        '-b', '--batch-size', 
+        type=int, 
+        default=16, 
+        help='Batch size for evaluation.'
+    )
+    parser.add_argument(
+        '-n', '--num-workers', 
+        type=int, 
+        default=4, 
+        help='Number of workers for the dataloader.'
+    )
+    parser.add_argument(
+        '-t', '--threshold', 
+        type=float, 
+        default=None, 
+        help='The threshold for calculating the metrics. If not provided, the best threshold will be calculated.'
+    )
+    parser.add_argument(
+        '--seed', 
+        type=int, 
+        default=42, 
+        help='Random seed for reproducibility.'
+    )
+    parser.add_argument(
+        '--model-name', 
+        type=str, 
+        default='ResNeXt50', 
+        help='Model architecture to use.', 
+        choices=[
+            'ResNet50', 'ResNet101', 'ResNet152', 'ResNeXt50', 'ResNeXt101', 'ViT_B_16', 'ViT_B_32', 'ViT_L_16', 
+            'ViT_L_32', 'ViTAR_B_16', 'ViTAR_L_16'
+        ]
+    )
     args = parser.parse_args()
 
     # Set gpu, mps or cpu
@@ -184,8 +224,8 @@ def val():
     generator = set_seed(seed=args.seed)
 
     # Build the test data loader
-    test_set = TripletDataset(path=args.path, size=args.image_size, augmentation=False)
-    test_loader = torch.utils.data.DataLoader(
+    test_set = TripletDataset(path=args.path, img_size=args.image_size, augmentation=False)
+    test_loader = DataLoader(
         test_set,
         batch_size=args.batch_size,
         shuffle=False,
