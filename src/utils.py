@@ -83,7 +83,9 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     max_scale_factor = batch[0]["max_scale_factor"]
 
     # Calculate the random downscale factor
-    scale_factor = random.randint(1, max_scale_factor)
+    scale_factor = 1
+    if random.randint(0, 1) == 1:
+        scale_factor = random.randint(2, max_scale_factor)
 
     # Create the transformation pipeline
     transformation = transforms.Compose(
