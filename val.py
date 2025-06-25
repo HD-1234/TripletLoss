@@ -5,7 +5,7 @@ from typing import Tuple, Optional
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torch.utils.data.dataloader import DataLoader
+from torch.utils.data import DataLoader
 
 from src.dataset import TripletDataset
 from src.modelloader import ModelLoader
@@ -28,14 +28,14 @@ def calculate_distances(model: nn.Module, data_loader: DataLoader, device: str) 
     model.eval()
 
     # Initialize tensors to accumulate results
-    num_samples = len(data_loader.dataset)
+    num_samples = len(getattr(data_loader, "dataset"))
     positives = torch.zeros(num_samples, device=device)
     negatives = torch.zeros(num_samples, device=device)
 
     with torch.no_grad():
         for ind, batch in enumerate(data_loader):
             # Unpack the batch
-            data, _ = batch
+            data = batch["data"]
 
             # Get triplets from batch
             anchor, positive, negative = data[:, 0], data[:, 1], data[:, 2]
@@ -147,7 +147,7 @@ def calculate_metrics(
 
         # Find the best index
         scores = torch.zeros(results[:, 0].shape)
-        scores += ((results[:, 3] * 0.9) + (results[:, 1] * 0.1))
+        scores += ((results[:, 3] * 0.75) + (results[:, 1] * 0.25))
         index = torch.argmax(scores[:])
 
         # Get the best threshold and the corresponding metrics
@@ -165,13 +165,13 @@ def val():
     parser.add_argument(
         '-p', '--path', 
         type=Path, 
-        required=True, 
+        required=True,
         help='Path to the test dataset directory.'
     )
     parser.add_argument(
         '-m', '--model', 
         type=Path, 
-        required=True, 
+        required=True,
         help='Path to the model.'
     )
     parser.add_argument(
@@ -225,7 +225,7 @@ def val():
 
     # Build the test data loader
     test_set = TripletDataset(path=args.path, img_size=args.image_size, augmentation=False)
-    test_loader = torch.utils.data.DataLoader(
+    test_loader = DataLoader(
         test_set,
         batch_size=args.batch_size,
         shuffle=False,

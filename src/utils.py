@@ -84,13 +84,14 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     # Calculate the random downscale factor
     scale_factor = 1
-    if random.randint(0, 1) == 1:
+    if max_scale_factor != 1 and random.randint(0, 1) == 1:
         scale_factor = random.randint(2, max_scale_factor)
 
     # Create the transformation pipeline
+    image_size = min_img_size * scale_factor
     transformation = transforms.Compose(
         [
-            transforms.Resize(size=min_img_size * scale_factor)
+            transforms.Resize(size=(image_size, image_size))
         ]
     )
 

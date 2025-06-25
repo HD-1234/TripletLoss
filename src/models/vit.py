@@ -403,7 +403,7 @@ class VisionTransformer(nn.Module):
 
         return out
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, **kwargs) -> Tensor:
         """
         Forward pass of the Vision Transformer.
 

@@ -239,7 +239,7 @@ def run_inference():
 
     # Build the test data loader
     test_set = InferenceDataset(path=args.input_path, img_size=args.image_size)
-    test_loader = torch.utils.data.DataLoader(
+    test_loader = DataLoader(
         test_set,
         batch_size=args.batch_size,
         shuffle=False,

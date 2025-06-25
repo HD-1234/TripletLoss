@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Tuple, Optional
+from typing import Tuple
 
 import torch.nn as nn
 from torch import Tensor
@@ -429,7 +429,7 @@ class VisionTransformerAnyResolution(nn.Module):
 
         return x + pos
 
-    def _preprocess(self, x: Tensor, fuzzy_positional_encoding: Optional[bool] = False) -> Tensor:
+    def _preprocess(self, x: Tensor, fuzzy_positional_encoding: bool) -> Tensor:
         """
         Preprocesses the input tensor.
 
@@ -460,18 +460,19 @@ class VisionTransformerAnyResolution(nn.Module):
 
         return x
 
-    def forward(self, x: Tensor, **xargs) -> Tensor:
+    def forward(self, x: Tensor, fuzzy_positional_encoding: bool = False) -> Tensor:
         """
         Forward pass of the Vision Transformer.
 
         Args:
             x (Tensor): The input tensor.
+            fuzzy_positional_encoding (bool): Whether to apply fuzzy positional encodings or not.
 
         Returns:
             Tensor: The output tensor.
         """
         # Create embeddings and add a class token
-        out = self._preprocess(x, fuzzy_positional_encoding=xargs.get("fpe", None))
+        out = self._preprocess(x, fuzzy_positional_encoding=fuzzy_positional_encoding)
 
         # Run encoder
         out = self.encoder(out)
