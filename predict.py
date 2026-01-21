@@ -29,10 +29,6 @@ def predict(model: nn.Module, data_loader: DataLoader, device: str, temp_folder:
     Returns:
         dict: A dict containing the original file path as key and the path to the corresponding tensor as value.
     """
-    # Ensure the output folder exists
-    if not os.path.exists(temp_folder):
-        os.mkdir(temp_folder)
-
     # Set the model to eval mode
     model.eval()
 
@@ -260,13 +256,21 @@ def run_inference():
         )
     )
 
+    # Ensure the temporary output folder does not exist
+    temp_folder = os.path.join(args.output_path, "temp")
+    if os.path.exists(temp_folder):
+        raise Exception(f"Path '{temp_folder}' already exists.")
+
+    # Create the temporary output folder
+    os.mkdir(temp_folder)
+
     # Predict embeddings
     write_log_message("Predicting embeddings.")
     embeddings = predict(
         model=model,
         data_loader=test_loader,
         device=device,
-        temp_folder=os.path.join(args.output_path, "temp")
+        temp_folder=temp_folder
     )
 
     # Sort embeddings
@@ -293,6 +297,10 @@ def run_inference():
         for path in paths:
             file_name = os.path.basename(path)
             shutil.copy(src=path, dst=os.path.join(cluster_path, file_name))
+
+    # Clean up temp files
+    if os.path.exists(temp_folder):
+        shutil.rmtree(temp_folder)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ from src.modelloader import ModelLoader
 from src.utils import (
     BestResult,
     calculate_lr_factor,
-    collate_fn,
+    load_pretrained_weights,
     save_training_checkpoint,
     set_seed,
     set_worker_seed,
@@ -190,7 +190,7 @@ def train():
     args = parser.parse_args()
 
     # Set gpu, mps or cpu
-    device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     write_log_message(f"Using {device} device.")
 
     # Create a log folder with the current date and time
@@ -221,12 +221,14 @@ def train():
     # Sets the seed
     generator = set_seed(seed=args.seed, deterministic_algorithms=args.deterministic_algorithms)
 
+    # Get max scale factor
+    max_scale_factor = 5 if "vitar" in args.model_name.lower() else 1
+
     # Build the training data loader
     training_set = TripletDataset(
         path=args.train_set,
         img_size=args.image_size,
-        augmentation=args.augment,
-        max_scale_factor=5 if "vitar" in args.model_name.lower() else 1
+        max_scale_factor=max_scale_factor
     )
     training_loader = DataLoader(
         training_set,
@@ -235,7 +237,7 @@ def train():
         num_workers=args.num_workers,
         worker_init_fn=set_worker_seed,
         generator=generator,
-        collate_fn=collate_fn
+        pin_memory=True if device != "mps" else False
     )
 
     # Build the validation Data loader
@@ -246,7 +248,8 @@ def train():
         shuffle=False,
         num_workers=args.num_workers,
         worker_init_fn=set_worker_seed,
-        generator=generator
+        generator=generator,
+        pin_memory=True if device != "mps" else False
     )
 
     # Load model to device
@@ -257,13 +260,15 @@ def train():
     model = model_loader.load_model()
 
     if args.pretrained_weights:
-        write_log_message(f"Loading pretrained weights from '{args.pretrained_weights}'.")
-
-        # Load the pretrained model weights
-        pretrained_state_dict = torch.load(args.pretrained_weights, weights_only=True, map_location=device)
-
         # Get the current weights
         model_state_dict = model.state_dict()
+
+        # Load pretrained weights
+        pretrained_state_dict = load_pretrained_weights(
+            path=args.pretrained_weights,
+            model_state_dict=model_state_dict,
+            device=device
+        )
 
         # Filter out size mismatches and load the pretrained weights
         model.load_state_dict(
@@ -325,10 +330,14 @@ def train():
     scheduler = Scheduler(
         model=model,
         device=device,
+        img_size=args.image_size,
         loss_fn=loss_fn,
         optimizer=optimizer,
+        lr_scheduler=lr_scheduler,
         training_loader=training_loader,
-        validation_loader=validation_loader
+        validation_loader=validation_loader,
+        max_norm=args.max_norm,
+        max_scale_factor=max_scale_factor
     )
 
     # Initialize results
@@ -339,7 +348,7 @@ def train():
 
     # Train and evaluate
     early_stopping_reason = ""
-    for epoch in tqdm(range(1, args.epochs+1), initial=0):
+    for epoch in range(1, args.epochs+1):
         if early_stopping_reason:
             break
 
@@ -349,10 +358,14 @@ def train():
             continue
 
         # Train one epoch
-        train_loss = scheduler.train_one_epoch(lr_scheduler=lr_scheduler, max_norm=args.max_norm)
+        write_log_message(f"Epoch {epoch}/{args.epochs}")
+        write_log_message(f"Training:")
+        train_loss = scheduler.train_one_epoch(augmentation=args.augment)
 
         # Evaluate
+        write_log_message(f"Validation:")
         val_loss = scheduler.evaluate()
+        write_log_message(f"Training loss: {train_loss:.8f}; Validation loss: {val_loss:.8f}")
 
         # Add losses to graph
         writer.add_scalars('loss/overview', {'train': train_loss, 'val': val_loss}, epoch)
@@ -382,7 +395,7 @@ def train():
         )
 
     writer.close()
-    write_log_message(f"Training has been finished.", early_stopping_reason)
+    write_log_message(f"Training has been finished. {early_stopping_reason}")
 
 
 if __name__ == "__main__":

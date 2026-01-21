@@ -34,11 +34,8 @@ def calculate_distances(model: nn.Module, data_loader: DataLoader, device: str) 
 
     with torch.no_grad():
         for ind, batch in enumerate(data_loader):
-            # Unpack the batch
-            data = batch["data"]
-
             # Get triplets from batch
-            anchor, positive, negative = data[:, 0], data[:, 1], data[:, 2]
+            anchor, positive, negative = batch["anchors"], batch["positives"], batch["negatives"]
 
             # Standard batch size
             batch_size = data_loader.batch_size
@@ -224,7 +221,7 @@ def val():
     generator = set_seed(seed=args.seed)
 
     # Build the test data loader
-    test_set = TripletDataset(path=args.path, img_size=args.image_size, augmentation=False)
+    test_set = TripletDataset(path=args.path, img_size=args.image_size)
     test_loader = DataLoader(
         test_set,
         batch_size=args.batch_size,

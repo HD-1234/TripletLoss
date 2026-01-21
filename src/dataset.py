@@ -6,14 +6,14 @@ import pypdfium2 as pdfium
 import torch
 
 from PIL import Image
-from typing import List, Tuple, Dict, Union
+from typing import List, Tuple, Dict
 
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 
 
 class BaseDataset(Dataset):
-    def __init__(self, path: str, img_size: int, max_scale_factor: int = 1, augmentation: bool = False) -> None:
+    def __init__(self, path: str, img_size: int, max_scale_factor: int = 1) -> None:
         """
         Initializes the base dataset.
 
@@ -21,48 +21,14 @@ class BaseDataset(Dataset):
             path (str): The directory containing images.
             img_size (int): The image size.
             max_scale_factor (int): The maximum scale factor for calculating the final image resolution.
-            augmentation (bool): Whether to apply data augmentation or not.
         """
         super().__init__()
         self.size = img_size * max_scale_factor
-
-        if augmentation:
-            self.transform = transforms.Compose([
-                transforms.RandomRotation(
-                    degrees=(-2, 2)
-                ),
-                transforms.ColorJitter(
-                    brightness=(0.85, 1.0),
-                    contrast=(0.85, 1.0),
-                    saturation=(0.85, 1.0),
-                    hue=(-0.05, 0.05)
-                ),
-                transforms.GaussianBlur(
-                    kernel_size=3,
-                    sigma=(1.5, 2.0)
-                ),
-                transforms.RandomAdjustSharpness(
-                    sharpness_factor=2,
-                    p=0.5
-                ),
-                transforms.RandomPerspective(
-                    distortion_scale=0.1,
-                    p=1.0
-                ),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406],
-                    std=[0.229, 0.224, 0.225]
-                ),
-            ])
-        else:
-            self.transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406],
-                    std=[0.229, 0.224, 0.225]
-                )
-            ])
+        self.transform = transforms.Compose(
+            [
+                transforms.ToTensor()
+            ]
+        )
 
         if not os.path.exists(path):
             raise FileNotFoundError(f"Directory '{path}' does not exist.")
@@ -149,7 +115,7 @@ class BaseDataset(Dataset):
 
 
 class TripletDataset(BaseDataset):
-    def __init__(self, path: str, img_size: int, max_scale_factor: int = 1, augmentation: bool = False) -> None:
+    def __init__(self, path: str, img_size: int, max_scale_factor: int = 1) -> None:
         """
         Initializes the triplet dataset.
 
@@ -157,12 +123,8 @@ class TripletDataset(BaseDataset):
             path (str): The directory containing images.
             img_size (int): The image size.
             max_scale_factor (int): The maximum scale factor for calculating the final image resolution.
-            augmentation (bool): Whether to apply data augmentation or not.
         """
-        super().__init__(path=path, img_size=img_size, max_scale_factor=max_scale_factor, augmentation=augmentation)
-        self.img_size = img_size
-        self.max_scale_factor = max_scale_factor
-
+        super().__init__(path=path, img_size=img_size, max_scale_factor=max_scale_factor)
         self.templates = list(self.paths.keys())
         self.index_to_template = {i: p for i, p in enumerate([p for template in self.paths.values() for p in template])}
         self.templates_with_multiple_samples = self._get_templates_with_multiple_samples(self.paths)
@@ -206,7 +168,7 @@ class TripletDataset(BaseDataset):
     def __len__(self) -> int:
         return len(self.index_to_template)
 
-    def __getitem__(self, index: int) -> Dict[str, Union[str, torch.Tensor]]:
+    def __getitem__(self, index: int) -> dict:
         """
         Gets a triplet of images.
 
@@ -242,11 +204,15 @@ class TripletDataset(BaseDataset):
         labels_tensor = torch.tensor(labels, dtype=torch.long)
 
         return dict(
-            img_size=self.img_size,
-            max_scale_factor=self.max_scale_factor,
-            paths=paths,
-            data=torch.stack((anchor, positive, negative)),
-            labels=labels_tensor
+            anchors=anchor,
+            positives=positive,
+            negatives=negative,
+            anchor_labels=labels_tensor[0],
+            positive_labels=labels_tensor[1],
+            negative_labels=labels_tensor[2],
+            anchor_paths=[anchor_path],
+            positive_paths=[positive_path],
+            negative_paths=[negative_path],
         )
 
 
