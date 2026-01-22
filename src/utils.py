@@ -1,16 +1,18 @@
 import os
 import random
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 import yaml
-from datetime import datetime
 
 import numpy as np
 import torch
 from torch import nn, optim
 from torch.optim.lr_scheduler import LRScheduler
-from torchvision.transforms import transforms
+
+import logging
+
+logging.basicConfig(format='[%(asctime)s - %(levelname)s] %(message)s', level=logging.INFO, datefmt='%H:%M:%S')
 
 
 class BestResult:
@@ -63,46 +65,6 @@ def set_worker_seed(worker_id):
     worker_seed = torch.initial_seed() % 2 ** 32
     np.random.seed(worker_seed)
     random.seed(worker_seed)
-
-
-def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Custom collate function for batch processing with random down-sampling. Reduces all images in the batch to a random
-    scale (1 to 5 times smaller than the original size) and then stacks them. The labels are also stacked. The stacked
-    tensors and the paths build the output.
-
-    Args:
-        batch (List[Dict[str, Any]]): List of dictionaries with image tensors, label tensors, image size, paths and the
-            max scale factor
-
-    Returns:
-        Dict: Image paths, image tensors and labels for each triplet within the batch.
-    """
-    # Get min image size and the max scale factor
-    min_img_size = batch[0]["img_size"]
-    max_scale_factor = batch[0]["max_scale_factor"]
-
-    # Calculate the random downscale factor
-    scale_factor = 1
-    if max_scale_factor != 1 and random.randint(0, 1) == 1:
-        scale_factor = random.randint(2, max_scale_factor)
-
-    # Create the transformation pipeline
-    image_size = min_img_size * scale_factor
-    transformation = transforms.Compose(
-        [
-            transforms.Resize(size=(image_size, image_size))
-        ]
-    )
-
-    # Get the paths within the batch
-    paths = [b["paths"] for b in batch]
-
-    # Stack the label and image tensors within the batch
-    image_tensors = torch.stack([transformation(b["data"]) for b in batch])
-    label_tensors = torch.stack([b["labels"] for b in batch])
-
-    return dict(paths=paths, data=image_tensors, labels=label_tensors)
 
 
 def calculate_lr_factor(
@@ -190,16 +152,14 @@ def calculate_lr_factor(
     return factor
 
 
-def write_log_message(*args) -> None:
+def write_log_message(message: str) -> None:
     """
     Writes a log message to the console.
 
     Args:
-        *args: Variable number of arguments to write into a log message.
+        message (str): The message to print.
     """
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    message = " ".join(str(a) for a in args)
-    print(f"[{timestamp}] {message}")
+    logging.info(message)
 
 
 def write_hyperparameters_to_yaml(path: str, hyperparameters: Dict) -> None:
@@ -245,3 +205,51 @@ def save_training_checkpoint(
 
     # Save latest model
     torch.save(training_state, os.path.join(path, f"latest.pth"))
+
+
+def load_pretrained_weights(path: str, model_state_dict: Dict[str, Any], device: str) -> Dict[str, torch.Tensor]:
+    """
+    Load and preprocess pretrained model weights.
+
+    Args:
+        path (str): The path to the pretrained weights.
+        model_state_dict (Dict[str, Any]): The current model state dict.
+        device (str): The device.
+
+    Returns:
+        Dict[str, torch.Tensor]: The loaded and preprocessed pretrained model weights.
+    """
+    write_log_message(f"Loading pretrained weights from '{path}'.")
+
+    def construct_pretrained_weights(pretrained_weights: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        if "model_state_dict" in pretrained_weights:
+            pretrained_weights = pretrained_weights["model_state_dict"]
+
+        output = dict()
+        for k, v in pretrained_weights.items():
+            if not k.startswith("embedding_model."):
+                k = f"embedding_model.{k}"
+            output[k] = v
+        return output
+
+    # Load the pretrained model weights
+    pretrained_state_dict = construct_pretrained_weights(
+        torch.load(path, weights_only=True, map_location=device)
+    )
+
+    # Additional keys in pretrained weights
+    additional_keys_pretrained = list(set(pretrained_state_dict.keys()) - set(model_state_dict.keys()))
+    if additional_keys_pretrained:
+        write_log_message(
+            f"Additional keys in pretrained weights (Total: {len(additional_keys_pretrained)}):"
+            f"\n{additional_keys_pretrained}"
+        )
+
+    # Additional keys in model weights
+    additional_keys_model = list(set(model_state_dict.keys()) - set(pretrained_state_dict.keys()))
+    if additional_keys_model:
+        write_log_message(
+            f"Missing keys in pretrained weights (Total: {len(additional_keys_model)}):\n{additional_keys_model}"
+        )
+
+    return pretrained_state_dict

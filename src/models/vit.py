@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -7,23 +8,32 @@ import math
 
 from src.models.base_model import BaseEmbeddingModel
 
-
 __all__ = ["VisionTransformerB16", "VisionTransformerB32", "VisionTransformerL16", "VisionTransformerL32"]
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int) -> None:
+    def __init__(
+            self,
+            d_model: int,
+            num_heads: int,
+            dropout: float = 0.0,
+    ) -> None:
         """
         Initializes the Multi-Head Attention layer.
 
         Args:
             d_model (int): The dimension of the model.
-            num_heads (int): The number of attention heads.
+            num_heads (i nt): The number of attention heads.
+            dropout (float): The dropout probability for the attention weights.
         """
         super(MultiHeadAttention, self).__init__()
         self.d_model = d_model
         self.num_heads = num_heads
         self.head_dim = d_model // num_heads
+        self.dropout = dropout
+
+        # Dropout layer
+        self.dropout_layer = nn.Dropout(dropout)
 
         if self.head_dim * num_heads != d_model:
             raise ValueError("d_model must be divisible by num_heads")
@@ -99,25 +109,30 @@ class MultiHeadAttention(nn.Module):
         # Apply the softmax function
         attn = torch.softmax(attn, dim=-1)
 
+        # Apply dropout
+        attn = self.dropout_layer(attn)
+
         # Apply the attention weights to the value tensor
         out = torch.matmul(attn, v)
 
         return out
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, q: Tensor, k: Tensor, v: Tensor) -> Tensor:
         """
         Forward pass of the Multi-Head Attention layer.
 
         Args:
-            x (Tensor): The input tensor with shape (batch_size, seq_length, d_model).
+            q (Tensor): The query tensor with shape (batch_size, seq_length, d_model).
+            k (Tensor): The key tensor with shape (batch_size, seq_length, d_model).
+            v (Tensor): The value tensor with shape (batch_size, seq_length, d_model).
 
         Returns:
             Tensor: The output tensor with shape (batch_size, seq_length, d_model).
         """
         # Project the input to get query, key, and value tensors
-        q = self.q_proj(x)
-        k = self.k_proj(x)
-        v = self.v_proj(x)
+        q = self.q_proj(q)
+        k = self.k_proj(k)
+        v = self.v_proj(v)
 
         # Split the heads and transpose the result
         q = self.split_heads(q)
@@ -223,7 +238,7 @@ class EncoderBlock(nn.Module):
         x = self.ln_1(x)
 
         # Calculate self-attention
-        x = self.self_attention(x)
+        x = self.self_attention(x, x, x)
 
         # Apply dropout
         x = self.dropout(x)

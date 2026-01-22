@@ -1,15 +1,88 @@
 from collections import OrderedDict
-from typing import Tuple
 
-import torch.nn as nn
 from torch import Tensor
+import torch.nn as nn
+import torch.nn.functional as F
 
+from src.models.vit import MultiHeadAttention
 from src.models.base_model import BaseEmbeddingModel
 
 import torch
 
 
 __all__ = ["VisionTransformerAnyResolutionB16", "VisionTransformerAnyResolutionL16"]
+
+
+class GridPadding(nn.Module):
+    def __init__(self, grid_size: int, num_tokens: int) -> None:
+        """
+        Initializes the Grid Padding.
+
+        Args:
+            num_tokens (int): The final number of tokens per dimension.
+            grid_size (int): The size of each grid cell.
+        """
+        super().__init__()
+        self.grid_size = grid_size
+        self.num_tokens = num_tokens
+
+        # Validate initialization parameters
+        if grid_size <= 0 or num_tokens <= 0:
+            raise ValueError("grid_size and num_tokens must be positive integers")
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Apply the grid padding to the input tensor.
+
+        Args:
+            x (Tensor): The input tensor of shape (batch_size, d_model, width, height).
+
+        Returns:
+            Tensor: The padded tensor of shape (batch_size, d_model, grid_size * num_tokens, grid_size * num_tokens).
+        """
+        # Get current dimensions and validate square input
+        batch_size, d_model, width, height = x.shape
+        assert width == height
+
+        # Skip padding if the input tensor already matches target dimensions
+        if width % self.num_tokens == 0:
+            return x
+
+        # Calculate the target dimensions
+        target_dim = self.grid_size * self.num_tokens
+
+        # Up-sampling using 2D transposed convolution
+        weights = torch.ones((d_model, 1, 1, 1), dtype=x.dtype, device=x.device)
+        output = F.conv_transpose2d(x, weight=weights, stride=self.grid_size, groups=d_model)
+
+        # Get the up-sampled dimension
+        dim = output.shape[-1]
+
+        # Get the original indices
+        indices = torch.arange(start=0, end=dim, step=self.grid_size, device=x.device)
+
+        # Create a mask to keep only the required padding cells to match the target dimension
+        mask = torch.zeros(dim, dtype=torch.bool, device=x.device)
+        mask[indices] = True
+
+        # Get the new indices
+        padding_indices = torch.arange(start=0, end=dim, step=1, device=x.device)[~mask]
+
+        # Calculate the max index and update the mask
+        padding_dim = target_dim - width
+        pad_indices_keep = padding_indices[:padding_dim]
+        mask[pad_indices_keep] = True
+
+        # Create 2D mask
+        mask = mask.unsqueeze(0) & mask.unsqueeze(-1)
+
+        # Apply mask to output tensor
+        output = output[:, :, mask]
+
+        # (batch_size, d_model, width * height) -> (batch_size, d_model, width, height)
+        output = output.reshape(batch_size, d_model, target_dim, target_dim)
+
+        return output
 
 
 class FeedForwardNetwork(nn.Module):
@@ -46,59 +119,25 @@ class FeedForwardNetwork(nn.Module):
 
 
 class GridAttention(nn.Module):
-    def __init__(self, hidden_dim: int, num_heads: int, num_tokens: int) -> None:
+    def __init__(self, hidden_dim: int, num_heads: int, grid_size: int) -> None:
         """
         Initializes the Grid Attention layer.
 
         Args:
             hidden_dim (int): The dimension of the model.
             num_heads (int): The number of attention heads.
-            num_tokens (int): The number of tokens per image dimension.
+            grid_size (int): The size of each grid cell.
         """
         super(GridAttention, self).__init__()
-        self.num_tokens = num_tokens
+        self.grid_size = grid_size
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
 
         # Initialize the cross attention layer
-        self.cross_attention = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=num_heads, batch_first=True)
+        self.cross_attention = MultiHeadAttention(d_model=hidden_dim, num_heads=num_heads)
 
-    def _preprocess(self, x: Tensor) -> Tuple[Tensor, Tensor]:
-        """
-        Preprocess the input tensor.
-
-        Args:
-            x (Tensor): The input tensor of shape (batch_size, width, height, d_model).
-
-        Returns:
-            Tuple: The query and the key/value of shape (batch_size, seq_length, d_model).
-        """
-        # Get batch size, width, height and d_model
-        batch_size, d_model, width, height = x.shape
-
-        assert width == height
-
-        # Calculate the size of each grid cell
-        grid_size = height // self.num_tokens
-
-        # Apply average pooling to each grid
-        q = nn.AdaptiveAvgPool2d((self.num_tokens, self.num_tokens))(x)
-
-        # (batch_size, d_model, width, height) -> (batch_size, d_model, seq_length)
-        q = q.flatten(2)
-
-        # (batch_size, d_model, seq_length) -> (batch_size, seq_length, d_model)
-        q = q.permute(0, 2, 1)
-
-        # (batch_size, d_model, width, height) -> (batch_size, width, height, d_model)
-        k_v = x.permute(0, 2, 3, 1)
-
-        # Build the grid
-        k_v = k_v.unfold(1, grid_size, grid_size).unfold(2, grid_size, grid_size)
-        k_v = k_v.contiguous().view(x.size())
-
-        # (batch_size, height, width, d_model) -> (batch_size, seq_length, d_model)
-        k_v = k_v.reshape(batch_size, -1, d_model)
-
-        return q, k_v
+        # Average pooling layer
+        self.avg_pooling_layer = nn.AvgPool2d((self.grid_size, self.grid_size))
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -108,19 +147,40 @@ class GridAttention(nn.Module):
             x (Tensor): The input tensor of shape (batch_size, d_model, width, height).
 
         Returns:
-            Tensor: The output tensor with shape (batch_size, seq_length, d_model)
+            Tensor: The output tensor with the shape (batch_size, seq_length, d_model)
         """
-        # Get query, key and value
-        q, k_v = self._preprocess(x)
+        # Get batch size, width, height and d_model
+        batch_size, d_model, width, height = x.shape
+        assert width == height
 
-        # Apply cross attention layer
-        output = torch.cat(
-            [
-                self.cross_attention(q[:, ind, :].unsqueeze(1), c, c)[0]
-                for ind, c in enumerate(k_v.chunk(self.num_tokens ** 2, dim=1))
-            ],
-            dim=1
-        )
+        # Get the number of grid cells for each dimension
+        g_h, g_w = height // self.grid_size, width // self.grid_size
+        num_grid_cells = g_h * g_w
+
+        # Apply average pooling to each grid
+        q = self.avg_pooling_layer(x)
+
+        # (batch_size, d_model, width, height) -> (batch_size, seq_length, d_model)
+        q = q.flatten(2).permute(0, 2, 1)
+
+        # (batch_size, seq_length, d_model) -> (batch_size * num_grid_cells 1, d_model)
+        q = q.reshape(batch_size * num_grid_cells, d_model).unsqueeze(dim=1)
+
+        # (batch_size, d_model, width, height) -> (batch_size, width, height, d_model)
+        k_v = x.permute(0, 2, 3, 1)
+
+        # Build the grid of shape (batch_size * num_grid_cells, GRID_SIZE * GRID_SIZE, d_model)
+        k_v = k_v.unfold(1, self.grid_size, self.grid_size).unfold(2, self.grid_size, self.grid_size)
+        k_v = k_v.reshape(batch_size * num_grid_cells, d_model, self.grid_size * self.grid_size).permute(0, 2, 1)
+
+        # Compute cross attention
+        attention = self.cross_attention(q, k_v, k_v)[0]
+
+        # Residual connection
+        output = q + attention
+
+        # (batch_size * num_grid_cells, 1, d_model) -> (batch_size, num_grid_cells, d_model)
+        output = output.reshape(batch_size, num_grid_cells, d_model)
 
         return output
 
@@ -128,7 +188,7 @@ class GridAttention(nn.Module):
 class AdaptiveTokenMerger(nn.Module):
     def __init__(
         self,
-        num_tokens: int,
+        grid_size: int,
         num_heads: int,
         d_model: int,
         ff_dim: int,
@@ -138,7 +198,7 @@ class AdaptiveTokenMerger(nn.Module):
         Initialize the Adaptive Token Merger.
 
         Args:
-            num_tokens (int): The number of tokens per image dimension.
+            grid_size (int): The size of each grid cell.
             num_heads (int): The number of attention heads.
             d_model (int): The hidden dimension.
             ff_dim (int): The dimension of the feed-forward network.
@@ -149,7 +209,7 @@ class AdaptiveTokenMerger(nn.Module):
         self.num_heads = num_heads
 
         # Grid attention
-        self.grid_attention = GridAttention(hidden_dim=d_model, num_heads=num_heads, num_tokens=num_tokens)
+        self.grid_attention = GridAttention(hidden_dim=d_model, num_heads=num_heads, grid_size=grid_size)
 
         # The feed-forward network
         self.feed_forward = FeedForwardNetwork(d_model=d_model, ff_dim=ff_dim, dropout=dropout)
@@ -164,10 +224,10 @@ class AdaptiveTokenMerger(nn.Module):
         Returns:
             Tensor: The output tensor.
         """
-        # Apply Grid Attention
+        # Apply grid attention
         x = self.grid_attention(x)
 
-        # Pass through the feed-forward network
+        # Pass attention output through the feed-forward network
         x = self.feed_forward(x)
 
         return x
@@ -227,7 +287,7 @@ class EncoderBlock(nn.Module):
         self.ln_1 = nn.LayerNorm(normalized_shape=d_model, eps=1e-6)
 
         # Multi-head self-attention mechanism
-        self.self_attention = nn.MultiheadAttention(embed_dim=d_model, num_heads=num_heads, batch_first=True)
+        self.self_attention = MultiHeadAttention(d_model=d_model, num_heads=num_heads)
 
         # Dropout layer
         self.dropout = nn.Dropout(dropout)
@@ -255,7 +315,7 @@ class EncoderBlock(nn.Module):
         x = self.ln_1(x)
 
         # Calculate self-attention
-        x = self.self_attention(x, x, x)[0]
+        x = self.self_attention(x, x, x)
 
         # Apply dropout
         x = self.dropout(x)
@@ -327,17 +387,19 @@ class Encoder(nn.Module):
 
 
 class VisionTransformerAnyResolution(nn.Module):
-    def __init__(self,
-                 img_size: int = 224,
-                 patch_size: int = 16,
-                 num_tokens: int = 14,
-                 d_model: int = 768,
-                 num_heads: int = 12,
-                 num_layers: int = 12,
-                 ff_dim: int = 2048,
-                 mlp_dim: int = 3072,
-                 dropout: float = 0.0,
-                 ) -> None:
+    def __init__(
+        self,
+        img_size: int = 224,
+        patch_size: int = 16,
+        num_tokens: int = 14,
+        grid_size: int = 2,
+        d_model: int = 768,
+        num_heads: int = 12,
+        num_layers: int = 12,
+        ff_dim: int = 2048,
+        mlp_dim: int = 3072,
+        dropout: float = 0.0
+    ) -> None:
         """
         Initializes the Vision Transformer Any Resolution (ViTAR).
 
@@ -345,6 +407,7 @@ class VisionTransformerAnyResolution(nn.Module):
             img_size (int): The size of the input image.
             patch_size (int): The size of the patches.
             num_tokens (int): The number of tokens per image dimension.
+            grid_size (int): The size of each grid cell.
             d_model (int): The hidden dimension.
             num_heads (int): The number of attention heads.
             num_layers (int): The number of encoder layers.
@@ -354,6 +417,7 @@ class VisionTransformerAnyResolution(nn.Module):
         """
         super(VisionTransformerAnyResolution, self).__init__()
         self.num_tokens = num_tokens
+        self.grid_size = grid_size
 
         # Convolutional layer to create the patches
         self.conv_proj = nn.Conv2d(
@@ -364,10 +428,13 @@ class VisionTransformerAnyResolution(nn.Module):
         seq_length = num_tokens ** 2
 
         # Positional Encoding
-        self.pos_encoding = nn.Parameter(torch.zeros(seq_length, d_model))
+        self.pos_encoding = nn.Parameter(torch.zeros(1, seq_length, d_model).normal_(std=0.02))
 
         # Initialize the positional encoding parameters using Xavier uniform initialization
         nn.init.xavier_uniform_(self.pos_encoding)
+
+        # Grid Padding
+        self.grid_padding = GridPadding(grid_size=self.grid_size, num_tokens=self.num_tokens)
 
         # Create class tokens
         self.class_token = nn.Parameter(torch.zeros(1, 1, d_model))
@@ -377,7 +444,11 @@ class VisionTransformerAnyResolution(nn.Module):
 
         # Adaptive Token Merger (ATM)
         self.adaptive_token_merger = AdaptiveTokenMerger(
-            num_tokens=num_tokens, num_heads=num_heads, d_model=d_model, ff_dim=ff_dim, dropout=dropout
+            grid_size=grid_size,
+            num_heads=num_heads,
+            d_model=d_model,
+            ff_dim=ff_dim,
+            dropout=dropout
         )
 
         # Initialize the encoder
@@ -406,29 +477,61 @@ class VisionTransformerAnyResolution(nn.Module):
             Tensor: The input tensor with the positional encoding.
         """
         # Get the current size
-        size = x.size(-1)
+        width, height = x.shape[-2:]
 
-        # Get the scale factor
-        scale_factor = size // self.num_tokens
+        assert width == height
 
         # (seq_length, d_model) -> (width, height, d_model)
         pos = self.pos_encoding.reshape(self.num_tokens, self.num_tokens, -1)
 
-        # (width, height, d_model) -> (d_model, width, height)
-        pos = pos.permute(2, 0, 1)
+        # (width, height, d_model) -> (1, d_model, width, height)
+        pos = pos.permute(2, 0, 1).unsqueeze(0)
+
+        if width != self.num_tokens:
+            # Apply interpolation on the positional embeddings
+            pos = nn.functional.interpolate(pos, size=(width, height), mode='bicubic')
 
         if fuzzy_positional_encoding:
-            # Generate a tensor filled with random numbers from a uniform distribution between -0.5 and 0.5
-            rnd_num = torch.rand(pos.size(), dtype=pos.dtype, device=pos.device) - 0.5
+            # Create a grid of coordinates of shape (width, height, 2)
+            grid = torch.stack(
+                torch.meshgrid(
+                    torch.arange(width, device=x.device),
+                    torch.arange(height, device=x.device),
+                    indexing='ij'
+                ),
+                dim=-1
+            ).to(x.dtype)
 
-            # Add fuzziness to the positional encodings
-            pos = pos.add(rnd_num)
+            # Add random offsets with a uniform distribution between [-0.5, 0.5]
+            grid += torch.rand_like(grid) - 0.5
 
-        # (d_model, width, height) -> (1, d_model, width, height)
-        pos = pos.unsqueeze(0)
+            # grid_sample() expects the left-top corner at [-1, -1] and the bottom-right corner at [1, 1]
+            grid /= torch.tensor([width - 1, height - 1], device=x.device)
+
+            # Handle NaN values by setting the values to 0
+            grid = grid.nan_to_num(0)
+
+            # (r2 - r1) * torch.rand(a, b) + r1 for a uniform distribution between [r1, r2].
+            # Here the range is between [-1, 1]
+            grid = (2 * grid) - 1
+
+            # Clamps all elements into the range [0, width]. MPS does not support padding mode border for grid_sample().
+            grid = grid.clamp(min=-1, max=1)
+
+            # (width, height, 2) -> (1, width, height, 2)
+            grid = grid.unsqueeze(0)
+
+            # Sample positional embeddings at the grid locations
+            pos = F.grid_sample(
+                pos,
+                grid,
+                mode="bilinear",
+                padding_mode="zeros" if x.device.type == "mps" else "border",
+                align_corners=False
+            )
 
         # (1, d_model, width, height) -> (batch_size, d_model, width, height)
-        pos = pos.repeat(x.size(0), 1, scale_factor, scale_factor)
+        pos = pos.repeat(x.size(0), 1, 1, 1)
 
         return x + pos
 
@@ -449,11 +552,28 @@ class VisionTransformerAnyResolution(nn.Module):
         # Add positional encodings
         x = self.add_pos_encoding(x, fuzzy_positional_encoding=fuzzy_positional_encoding)
 
-        # Apply the Adaptive token merger with Grid Attention
-        x = self.adaptive_token_merger(x)
+        # Get batch size, width, height and d_model
+        batch_size, d_model, width, height = x.shape
 
-        # Get the batch size from the input tensor
-        batch_size = x.shape[0]
+        while width > self.num_tokens or height > self.num_tokens:
+            # Apply the Adaptive token merger with Grid Attention
+            x = self.adaptive_token_merger(x)
+
+            # (batch_size, seq_length, d_model) -> (batch_size, d_model, seq_length)
+            x = x.permute(0, 2, 1)
+
+            # Get width, height
+            width = height = int(x.shape[-1] ** 0.5)
+
+            # (batch_size, d_model, seq_length) -> (batch_size, d_model, width, height)
+            x = x.reshape(batch_size, d_model, width, height)
+
+            # Apply grid padding
+            if 2 * self.num_tokens > width > self.num_tokens or 2 * self.num_tokens > height > self.num_tokens:
+                x = self.grid_padding(x)
+
+        # (batch, d_model, width, height) -> (batch, seq_length, d_model)
+        x = x.flatten(2).permute(0, 2, 1)
 
         # Expand the class token to match the embedding tensors
         class_tokens = self.class_token.expand(batch_size, -1, -1)
@@ -480,8 +600,8 @@ class VisionTransformerAnyResolution(nn.Module):
         # Run encoder
         out = self.encoder(out)
 
-        # Apply global average pooling
-        out = out.mean(dim=1)
+        # Extract the class token
+        out = out[:, 0]
 
         # Returns the image embedding
         out = self.heads(out)
