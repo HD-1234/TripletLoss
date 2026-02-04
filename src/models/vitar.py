@@ -174,7 +174,7 @@ class GridAttention(nn.Module):
         k_v = k_v.reshape(batch_size * num_grid_cells, d_model, self.grid_size * self.grid_size).permute(0, 2, 1)
 
         # Compute cross attention
-        attention = self.cross_attention(q, k_v, k_v)[0]
+        attention = self.cross_attention(q, k_v, k_v)
 
         # Residual connection
         output = q + attention
